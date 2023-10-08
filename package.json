@@ -1,0 +1,10 @@
+{
+  "name": "stabled_bot",
+  "version": "0.0.1",
+  "description": "a discord bot to generate images with stable diffusion instances",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "discord.js": "^14.13.0"
+  }
+}
