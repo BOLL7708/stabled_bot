@@ -1,9 +1,9 @@
-import {AttachmentBuilder, Message, TextChannel} from 'discord.js'
+import {AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Message, InteractionCollector} from 'discord.js'
 import Config from './Config.js'
 
 export default class Tasks {
-
-    static async generateImagesFromMessage(message: string): Promise<string[]> {
+    private static _generatedImageCount: number = 0
+    static async generateImagesFromMessage(message: string): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
         try {
@@ -20,21 +20,50 @@ export default class Tasks {
             })
             if (response.ok) {
                 const json: IStabledResponse = await response.json()
-                return json.images
+                const info = JSON.parse(json.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
+                const imageDic: IStringDictionary = {}
+                for(const image of json.images) {
+                    const seed = info.all_seeds.shift()
+                    console.log(`Generated image with seed ${seed}`)
+                    if(seed) {
+                        this._generatedImageCount++
+                        const serial = (this._generatedImageCount+100000).toString().substring(1)+'-'+seed
+                        console.log(`Submitting image with serial ${serial}`)
+                        imageDic[serial] = image
+                    }
+                }
+                return imageDic
             } else {
-                return []
+                return {}
             }
         } catch (e) {
             console.error(e)
-            return []
+            return {}
         }
     }
 
-    static async sendImagesAsReply(images: string[], messageObj: Message<boolean>, message: string) {
-        const attachments = images.map(image => new AttachmentBuilder(Buffer.from(image, 'base64'), {name: `${Math.round(Math.random() * 1000)}.png`}))
+    static async sendImagesAsReply(images: IStringDictionary, messageObj: Message<boolean>, message: string) {
+        const attachments = Object.entries(images).map(([fileName, imageData]) => {
+            return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
+        })
+        const confirm = new ButtonBuilder()
+            .setCustomId('ok')
+            .setLabel('🆗')
+            .setStyle(ButtonStyle.Primary);
+
+        const cancel = new ButtonBuilder()
+            .setCustomId('redo')
+            .setLabel('🔃')
+            .setStyle(ButtonStyle.Secondary);
+        const row = new ActionRowBuilder<ButtonBuilder>()
+            .addComponents(cancel, confirm)
+
+        // InteractionCollector
+
         return messageObj.reply({
             content: message,
-            files: attachments
+            files: attachments,
+            components: [row]
         })
     }
 }
@@ -94,4 +123,8 @@ interface IStabledResponse {
         alwayson_scripts: any
     },
     info: string
+}
+
+interface IStringDictionary {
+    [key: string]: string
 }

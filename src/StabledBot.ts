@@ -28,13 +28,28 @@ export default class StabledBot {
         else client.login(this._config.token).then()
 
         client.on(Events.MessageCreate, async message => {
-            if (message.content.includes('bingo')) {
-                const messageStr = message.content.replace('bingo', '')
+            let messageStr = message.content.toLowerCase()
+            if (messageStr.includes('bingo')) {
+                messageStr = messageStr.replace('bingo', '')
                 const images = await Tasks.generateImagesFromMessage(messageStr)
-                if (images.length) {
+                if (Object.keys(images).length) {
                     console.log(`Generated ${images.length} image(s).`)
                     await Tasks.sendImagesAsReply(images, message, 'Here you go!')
                 }
+            }
+        })
+
+        client.on(Events.InteractionCreate, async interaction => {
+            if(!interaction.isButton()) return
+            console.log('Interaction created', interaction.customId)
+            switch(interaction.customId) {
+                case 'redo':
+                    // interaction.reply('Redoing...')
+                    interaction.deferReply()
+                    break
+                case 'ok':
+                    interaction.deferUpdate()
+                    break
             }
         })
     }
