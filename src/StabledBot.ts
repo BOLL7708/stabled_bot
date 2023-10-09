@@ -1,5 +1,5 @@
 import Config, {IConfig} from './Config.js'
-import {Client, Events, GatewayIntentBits, TextChannel} from 'discord.js'
+import {Client, Events, GatewayIntentBits, TextChannel, ChannelType} from 'discord.js'
 import Tasks, {IStringDictionary} from './Tasks.js'
 import dns from 'node:dns';
 
@@ -38,6 +38,18 @@ export default class StabledBot {
                     console.log(`Generated ${Object.keys(images).length} image(s).`)
                     await Tasks.sendImagesAsReply(prompt, images, message, `Here you go ${message.author}!`)
                 }
+            } else if(content.includes('bongo')) {
+                const channel = message.channel as TextChannel
+                const thread = await channel.threads.create({
+                    name: 'Bongo',
+                    autoArchiveDuration: 60,
+                    type: ChannelType.PrivateThread,
+                    invitable: true,
+                    reason: 'Automatic thread for stabled message.'
+                })
+                thread.send({
+                    content: `Welcome ${message.author}! This is a private thread!`,
+                })
             }
         })
 
