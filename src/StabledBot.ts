@@ -1,10 +1,11 @@
 import Config, {IConfig} from './Config.js'
 import {Client, Events, GatewayIntentBits, TextChannel} from 'discord.js'
-import Tasks from './Tasks.js'
+import Tasks, {IStringDictionary} from './Tasks.js'
 import dns from 'node:dns';
 
 export default class StabledBot {
     private _config: IConfig
+    private _prompts: IStringDictionary = {}
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
@@ -28,28 +29,28 @@ export default class StabledBot {
         else client.login(this._config.token).then()
 
         client.on(Events.MessageCreate, async message => {
-            let messageStr = message.content.toLowerCase()
-            if (messageStr.includes('bingo')) {
-                messageStr = messageStr.replace('bingo', '')
-                const images = await Tasks.generateImagesFromMessage(messageStr)
+            let prompt = message.content.toLowerCase()
+            if (prompt.includes('bingo')) {
+                prompt = prompt.replace('bingo', '')
+                const images = await Tasks.generateImagesFromMessage(prompt)
                 if (Object.keys(images).length) {
+                    for(const [serial, imageData] of Object.entries(images)) this._prompts[serial] = prompt
                     console.log(`Generated ${images.length} image(s).`)
-                    await Tasks.sendImagesAsReply(images, message, 'Here you go!')
+                    await Tasks.sendImagesAsReply(prompt, images, message, 'Here you go!')
                 }
             }
         })
 
         client.on(Events.InteractionCreate, async interaction => {
             if(!interaction.isButton()) return
+            interaction.deferUpdate()
             console.log('Interaction created', interaction.customId)
-            switch(interaction.customId) {
-                case 'redo':
-                    // interaction.reply('Redoing...')
-                    interaction.deferReply()
-                    break
-                case 'ok':
-                    interaction.deferUpdate()
-                    break
+            const prompt = this._prompts[interaction.customId] ?? 'random garbage'
+            const images = await Tasks.generateImagesFromMessage(prompt)
+            if (Object.keys(images).length) {
+                for(const [serial, imageData] of Object.entries(images)) this._prompts[serial] = prompt
+                console.log(`Generated ${images.length} image(s).`)
+                await Tasks.sendImagesAsReply(prompt, images, interaction.message, 'Here you go again!')
             }
         })
     }

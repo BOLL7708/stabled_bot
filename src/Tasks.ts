@@ -1,4 +1,4 @@
-import {AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Message, InteractionCollector} from 'discord.js'
+import {AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Message, InteractionCollector, CacheType, Interaction, ButtonInteraction} from 'discord.js'
 import Config from './Config.js'
 
 export default class Tasks {
@@ -24,11 +24,9 @@ export default class Tasks {
                 const imageDic: IStringDictionary = {}
                 for(const image of json.images) {
                     const seed = info.all_seeds.shift()
-                    console.log(`Generated image with seed ${seed}`)
                     if(seed) {
-                        this._generatedImageCount++
+                        this._generatedImageCount++ // TODO: Switch this to a time-based value, or add a cron-job to reset this every day.
                         const serial = (this._generatedImageCount+100000).toString().substring(1)+'-'+seed
-                        console.log(`Submitting image with serial ${serial}`)
                         imageDic[serial] = image
                     }
                 }
@@ -42,29 +40,35 @@ export default class Tasks {
         }
     }
 
-    static async sendImagesAsReply(images: IStringDictionary, messageObj: Message<boolean>, message: string) {
+    static async sendImagesAsReply(prompt: string, images: IStringDictionary, obj: Message<boolean>|ButtonInteraction<CacheType>, message: string) {
         const attachments = Object.entries(images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
-        const confirm = new ButtonBuilder()
-            .setCustomId('ok')
-            .setLabel('🆗')
-            .setStyle(ButtonStyle.Primary);
-
-        const cancel = new ButtonBuilder()
-            .setCustomId('redo')
-            .setLabel('🔃')
-            .setStyle(ButtonStyle.Secondary);
         const row = new ActionRowBuilder<ButtonBuilder>()
-            .addComponents(cancel, confirm)
+        let buttonIndex = 0
+        // for(const serial of Object.keys(images)) {
+        //     const newButton = new ButtonBuilder()
+        //         .setCustomId(serial)
+        //         .setLabel(`${++buttonIndex}🔁`)
+        //         .setStyle(ButtonStyle.Secondary)
+        //     row.addComponents(newButton)
+        // }
+        const redoButton = new ButtonBuilder()
+            .setCustomId(Object.keys(images).pop())
+            .setLabel('REDO')
+            .setStyle(ButtonStyle.Secondary)
+        row.addComponents(redoButton)
 
         // InteractionCollector
-
-        return messageObj.reply({
-            content: message,
-            files: attachments,
-            components: [row]
-        })
+        try {
+            await obj.reply({
+                content: message,
+                files: attachments,
+                components: [row]
+            })
+        } catch(e) {
+            console.error(e)
+        }
     }
 }
 
@@ -125,6 +129,6 @@ interface IStabledResponse {
     info: string
 }
 
-interface IStringDictionary {
+export interface IStringDictionary {
     [key: string]: string
 }
