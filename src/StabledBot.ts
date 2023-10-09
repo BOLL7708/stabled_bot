@@ -29,14 +29,14 @@ export default class StabledBot {
         else client.login(this._config.token).then()
 
         client.on(Events.MessageCreate, async message => {
-            let prompt = message.content.toLowerCase()
-            if (prompt.includes('bingo')) {
-                prompt = prompt.replace('bingo', '')
+            let content = message.content.toLowerCase()
+            if (content.includes('bingo')) {
+                const prompt = content.replace('bingo', '')
                 const images = await Tasks.generateImagesFromMessage(prompt)
                 if (Object.keys(images).length) {
                     for(const [serial, imageData] of Object.entries(images)) this._prompts[serial] = prompt
-                    console.log(`Generated ${images.length} image(s).`)
-                    await Tasks.sendImagesAsReply(prompt, images, message, 'Here you go!')
+                    console.log(`Generated ${Object.keys(images).length} image(s).`)
+                    await Tasks.sendImagesAsReply(prompt, images, message, `Here you go ${message.author}!`)
                 }
             }
         })
@@ -50,7 +50,7 @@ export default class StabledBot {
             if (Object.keys(images).length) {
                 for(const [serial, imageData] of Object.entries(images)) this._prompts[serial] = prompt
                 console.log(`Generated ${images.length} image(s).`)
-                await Tasks.sendImagesAsReply(prompt, images, interaction.message, 'Here you go again!')
+                await Tasks.sendImagesAsReply(prompt, images, interaction.message, `Here you go again ${interaction.user}!`)
             }
         })
     }

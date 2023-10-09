@@ -61,7 +61,7 @@ export default class Tasks {
 
         // InteractionCollector
         try {
-            await obj.reply({
+            await obj.channel.send({
                 content: message,
                 files: attachments,
                 components: [row]
