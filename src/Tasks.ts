@@ -1,8 +1,9 @@
-import {AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Message, InteractionCollector, CacheType, Interaction, ButtonInteraction} from 'discord.js'
+import {ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction} from 'discord.js'
 import Config from './Config.js'
 
 export default class Tasks {
     private static _generatedImageCount: number = 0
+
     static async generateImagesFromMessage(message: string): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
@@ -15,18 +16,21 @@ export default class Tasks {
                 body: JSON.stringify({
                     prompt: message,
                     n_iter: 4,
-                    steps: 20
+                    steps: 20,
+                    width: 512,
+                    height: 512,
+                    // Try to figure out variations.
                 })
             })
             if (response.ok) {
                 const json: IStabledResponse = await response.json()
                 const info = JSON.parse(json.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
                 const imageDic: IStringDictionary = {}
-                for(const image of json.images) {
+                for (const image of json.images) {
                     const seed = info.all_seeds.shift()
-                    if(seed) {
+                    if (seed) {
                         this._generatedImageCount++ // TODO: Switch this to a time-based value, or add a cron-job to reset this every day.
-                        const serial = (this._generatedImageCount+100000).toString().substring(1)+'-'+seed
+                        const serial = (this._generatedImageCount + 100000).toString().substring(1) + '-' + seed
                         imageDic[serial] = image
                     }
                 }
@@ -40,7 +44,7 @@ export default class Tasks {
         }
     }
 
-    static async sendImagesAsReply(prompt: string, images: IStringDictionary, obj: Message<boolean>|ButtonInteraction<CacheType>, message: string) {
+    static async sendImagesAsReply(prompt: string, images: IStringDictionary, obj: ButtonInteraction | CommandInteraction, message: string) {
         const attachments = Object.entries(images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
@@ -53,22 +57,31 @@ export default class Tasks {
         //         .setStyle(ButtonStyle.Secondary)
         //     row.addComponents(newButton)
         // }
+        const deleteButton = new ButtonBuilder()
+            .setCustomId('DELETE#' + Object.keys(images).pop())
+            .setLabel('DELETE')
+            .setStyle(ButtonStyle.Danger)
         const redoButton = new ButtonBuilder()
-            .setCustomId(Object.keys(images).pop())
+            .setCustomId('REDO#' + Object.keys(images).pop())
             .setLabel('REDO')
             .setStyle(ButtonStyle.Secondary)
-        row.addComponents(redoButton)
+        row.addComponents(deleteButton, redoButton)
 
-        // InteractionCollector
+        // TODO: InteractionCollector
+
         try {
-            await obj.channel.send({
+            return await obj.editReply({
                 content: message,
                 files: attachments,
-                components: [row]
+                components: [row],
+                embeds: [{
+                    description: prompt
+                }]
             })
-        } catch(e) {
+        } catch (e) {
             console.error(e)
         }
+        return undefined
     }
 }
 

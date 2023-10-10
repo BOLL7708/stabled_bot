@@ -3,3 +3,4 @@ node_modules
 *.local.*
 dist
 package-lock.json
+*.db
