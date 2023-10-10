@@ -76,13 +76,6 @@ export default class StabledBot {
                             } else {
                                 await interaction.message.delete()
                             }
-                            try{
-                                // interaction.message.delete()
-                            } catch(e) {
-                                // interaction.message.edit({
-                                //     content: 'Test!'
-                                // })
-                            }
                         }
                         interaction.deleteReply()
                         break
@@ -101,7 +94,7 @@ export default class StabledBot {
                         await runGen('Here you go', prompt, interaction, this._db)
                         break
                     }
-                    case this.COMMAND_NSFW: {
+                    case 'storage_for_reuse': {
                         interaction.deferReply({
                             ephemeral: true
                         })
@@ -125,6 +118,12 @@ export default class StabledBot {
                                 content: `Sorry ${interaction.user} but I can't create a thread here :(`
                             })
                         }
+                        break
+                    }
+                    default: {
+                        interaction.reply({
+                            content: `Sorry ${interaction.user} but this command has been retired.`
+                        })
                     }
                 }
             }
