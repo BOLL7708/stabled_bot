@@ -1,20 +1,79 @@
-import {ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction} from 'discord.js'
-import Config from './Config.js'
+import {REST, Routes, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle} from 'discord.js'
+import Config, {IConfig} from './Config.js'
+import Constants from './Constants.js'
 
 export default class Tasks {
     private static _generatedImageCount: number = 0
 
+    static async registerCommands(config: IConfig) {
+        const rest = new REST({version: '10'}).setToken(config.token)
+        const genCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_GEN)
+            .setDescription('Generate an image from a prompt.')
+            .addStringOption(option => {
+                return option
+                    .setName('prompt')
+                    .setDescription('The prompt to generate images from.')
+                    .setRequired(true)
+            })
+            .addIntegerOption(option => {
+                return option
+                    .setName(Constants.OPTION_COUNT)
+                    .setDescription('The number of images to generate.')
+                    .setRequired(false)
+                    .addChoices(
+                        {name: '1', value: 1},
+                        {name: '2', value: 2},
+                        {name: '3', value: 3},
+                        {name: '4', value: 4},
+                        {name: '5', value: 5}
+                    )
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_ASPECT_RATIO)
+                    .setDescription('Aspect ratio of the generated images.')
+                    .setRequired(false)
+                    .addChoices(
+                        {name: 'Landscape Golden Ratio', value: '1.618:1'},
+                        {name: 'Landscape 32:9', value: '32:9'},
+                        {name: 'Landscape 21:9', value: '21:9'},
+                        {name: 'Landscape 16:9', value: '16:9'},
+                        {name: 'Landscape 4:3', value: '4:3'},
+                        {name: 'Landscape 3:2', value: '3:2'},
+                        {name: 'Landscape 2:1', value: '2:1'},
+                        {name: 'Square 1:1', value: '1:1'},
+                        {name: 'Portrait 1:2', value: '1:2'},
+                        {name: 'Portrait 2:3', value: '2:3'},
+                        {name: 'Portrait 3:4', value: '3:4'},
+                        {name: 'Portrait 9:16', value: '9:16'},
+                        {name: 'Portrait 9:21', value: '9:21'},
+                        {name: 'Portrait 9:32', value: '9:32'},
+                        {name: 'Portrait Golden Ratio', value: '1:1.618'}
+                    )
+            })
+        try {
+            await rest.put(Routes.applicationCommands(config.clientId), {body: [
+                genCommand.toJSON()
+            ]})
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
     static async generateImages(prompt: string, aspectRatio: string, count: number): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
+
         function calculateWidthHeightForAspectRatio(aspectRatioStr: string) {
             const aspectRatioPair = aspectRatioStr.split(':')
             const aspectRatio = Number(aspectRatioPair[0]) / Number(aspectRatioPair[1])
-            const width = Math.round(Math.sqrt(aspectRatio * (512*512)))
+            const width = Math.round(Math.sqrt(aspectRatio * (512 * 512)))
             const height = Math.round(width / aspectRatio)
-            return { width, height }
+            return {width, height}
         }
-        const { width, height } = calculateWidthHeightForAspectRatio(aspectRatio)
+
+        const {width, height} = calculateWidthHeightForAspectRatio(aspectRatio)
         try {
             const response = await fetch(`${baseUrl}/txt2img`, {
                 method: 'post',
@@ -52,7 +111,14 @@ export default class Tasks {
         }
     }
 
-    static async sendImagesAsReply(prompt: string, aspectRatio: string, count: number, images: IStringDictionary, obj: ButtonInteraction | CommandInteraction, message: string) {
+    static async sendImagesAsReply(
+        prompt: string,
+        aspectRatio: string,
+        count: number,
+        images: IStringDictionary,
+        obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
+        message: string
+    ) {
         const attachments = Object.entries(images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
@@ -67,15 +133,17 @@ export default class Tasks {
         // }
         const deleteButton = new ButtonBuilder()
             .setCustomId('DELETE#' + Object.keys(images).pop())
-            .setLabel('DELETE')
-            .setStyle(ButtonStyle.Danger)
+            .setEmoji('❌')
+            .setStyle(ButtonStyle.Secondary)
         const redoButton = new ButtonBuilder()
             .setCustomId('REDO#' + Object.keys(images).pop())
-            .setLabel('REDO')
+            .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
-        row.addComponents(deleteButton, redoButton)
-
-        // TODO: InteractionCollector
+        const editButton = new ButtonBuilder()
+            .setCustomId('EDIT#' + Object.keys(images).pop())
+            .setEmoji('📝')
+            .setStyle(ButtonStyle.Secondary)
+        row.addComponents(deleteButton, redoButton, editButton)
 
         try {
             return await obj.editReply({
@@ -90,6 +158,21 @@ export default class Tasks {
             console.error(e)
         }
         return undefined
+    }
+
+    static async promptUser(obj: ButtonInteraction | CommandInteraction, reference: string, prompt: string) {
+        const textInput = new TextInputBuilder()
+            .setCustomId(`new-prompt`)
+            .setLabel('Edit the prompt:')
+            .setValue(prompt)
+            .setStyle(TextInputStyle.Paragraph)
+        const promptRow = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput)
+        const modal = new ModalBuilder()
+            .setCustomId(`PROMPT#${reference}`)
+            .setTitle('Prompt')
+            .addComponents(promptRow)
+        await obj.showModal(modal)
     }
 }
 

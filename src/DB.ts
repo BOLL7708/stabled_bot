@@ -62,7 +62,7 @@ export default class DB {
     // endregion
 }
 
-interface IPromptRow {
+export interface IPromptRow {
     id: number
     reference: string
     prompt: string

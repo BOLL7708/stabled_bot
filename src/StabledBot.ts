@@ -1,20 +1,20 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, TextChannel} from 'discord.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
 import Tasks from './Tasks.js'
 import dns from 'node:dns';
 import DB from './DB.js'
+import Constants from './Constants.js'
 
 export default class StabledBot {
     private _config: IConfig
     private _db: DB
-    private readonly COMMAND_GEN = 'gen'
-    private readonly COMMAND_NSFW = 'nsfw'
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
 
         this._config = await Config.get()
         this._db = new DB(this._config)
+        await Tasks.registerCommands(this._config)
 
         // Create Discord client
         const client: Client = new Client({
@@ -27,61 +27,6 @@ export default class StabledBot {
         })
         client.once(Events.ClientReady, c => {
             console.log(`Ready! Logged in as ${c.user.tag}`)
-            c.application.commands.create({
-                name: this.COMMAND_GEN,
-                description: 'Generate a batch of images from a prompt.',
-                options: [{
-                    name: 'prompt',
-                    description: 'The prompt to generate images from.',
-                    type: ApplicationCommandOptionType.String,
-                    required: true
-                },{
-                    name: 'count',
-                    description: 'The number of images to generate.',
-                    type: ApplicationCommandOptionType.Integer,
-                    required: false,
-                    choices: [
-                        { name: '1', value: 1 },
-                        { name: '2', value: 2 },
-                        { name: '3', value: 3 },
-                        { name: '4', value: 4 },
-                        { name: '5', value: 5 },
-                        { name: '6', value: 6 }
-                    ]
-                },{
-                    name: 'aspect-ratio',
-                    description: 'Aspect ratio of the generated images.',
-                    type: ApplicationCommandOptionType.String,
-                    required: false,
-                    choices: [
-                        { name: 'Square 1:1', value: '1:1' },
-                        { name: 'Landscape 2:1', value: '2:1' },
-                        { name: 'Landscape 3:2', value: '3:2'},
-                        { name: 'Landscape 4:3', value: '4:3' },
-                        { name: 'Landscape 16:9', value: '16:9' },
-                        { name: 'Landscape 21:9', value: '21:9' },
-                        { name: 'Landscape 32:9', value: '32:9' },
-                        { name: 'Landscape Golden Ratio', value: '1.618:1' },
-                        { name: 'Portrait 1:2', value: '1:2' },
-                        { name: 'Portrait 2:3', value: '2:3'},
-                        { name: 'Portrait 3:4', value: '3:4' },
-                        { name: 'Portrait 9:16', value: '9:16' },
-                        { name: 'Portrait 9:32', value: '9:32' },
-                        { name: 'Portrait Golden Ratio', value: '1:1.618' },
-                    ]
-                }]
-            })
-            // c.application.commands.create({
-            //     name: this.COMMAND_NSFW,
-            //     description: 'Spawn a private thread for you and me to generate NSFW content.',
-            //     nsfw: true,
-            //     options: [{
-            //         name: 'name',
-            //         description: 'The name of the thread.',
-            //         type: ApplicationCommandOptionType.String,
-            //         required: false
-            //     }]
-            // })
         })
 
         // Log in to Discord with your client's token
@@ -99,67 +44,53 @@ export default class StabledBot {
                 const [type, serial] = interaction.customId.split('#')
                 switch (type) {
                     case 'DELETE': {
-                        interaction.deferReply()
+                        await interaction.deferReply({
+                            ephemeral: true
+                        })
                         const data = await this._db.getPrompt(serial)
                         if (data?.user && data.user == interaction.user.username) {
                             console.log('Delete this:', interaction.message.id)
                             if (!interaction.channel) {
+                                // It's not a channel, so it's in a DM
                                 const dmChannel = await interaction.user.createDM()
                                 const message = await dmChannel.messages.fetch(data.message_id)
                                 if (message) await message.delete()
                             } else {
+                                // Channel message, just delete
                                 await interaction.message.delete()
                             }
+                            await interaction.editReply({
+                                content: 'Post was deleted successfully!'
+                            })
+                        } else {
+                            await interaction.editReply({
+                                content: 'Only the original creator can delete a post!'
+                            })
                         }
-                        interaction.deleteReply()
                         break
                     }
                     case 'REDO': {
                         const data = await this._db.getPrompt(serial)
-                        const prompt = data?.prompt ?? 'random garbage'
+                        const prompt = data?.prompt ?? 'random waste'
                         const aspectRatio = data?.aspect_ratio ?? '1:1'
                         const count = data?.count ?? 4
                         await runGen('Here you go again', prompt, aspectRatio, count, interaction, this._db)
                         break
                     }
+                    case 'EDIT': {
+                        const data = await this._db.getPrompt(serial)
+                        await Tasks.promptUser(interaction, serial, data?.prompt ?? '')
+                    }
                 }
 
             } else if (interaction.isCommand()) {
                 switch (interaction.commandName) {
-                    case this.COMMAND_GEN: {
+                    case Constants.COMMAND_GEN: {
                         const prompt = interaction.options.get('prompt')?.value?.toString() ?? 'random garbage'
                         const aspectRatio = interaction.options.get('aspect-ratio')?.value?.toString() ?? '1:1'
                         const countValue = interaction.options.get('count')?.value
                         const count = countValue ? Number(countValue) : 4
                         await runGen('Here you go', prompt, aspectRatio, count, interaction, this._db)
-                        break
-
-                        // TODO: Launch into a graphical flow before runGen, this should also be reusable by an edit command.
-                    }
-                    case 'storage_for_reuse': {
-                        interaction.deferReply({
-                            ephemeral: true
-                        })
-                        const channel = interaction.channel as TextChannel
-                        const parent = interaction.channel.parent as TextChannel
-                        if (channel?.isTextBased || parent?.isTextBased) {
-                            const name = interaction.options.get('name')?.value?.toString() ?? 'Private NSFW'
-                            const threads = parent.threads ?? channel.threads
-                            const thread = await threads.create({
-                                name,
-                                autoArchiveDuration: 60,
-                                type: ChannelType.PrivateThread,
-                                invitable: true,
-                                reason: 'Automatic thread for stabled message.'
-                            })
-                            thread.send({
-                                content: `Welcome ${interaction.user}, this will be our naughty little thread!`
-                            })
-                        } else {
-                            await interaction.editReply({
-                                content: `Sorry ${interaction.user} but I can't create a thread here :(`
-                            })
-                        }
                         break
                     }
                     default: {
@@ -168,10 +99,21 @@ export default class StabledBot {
                         })
                     }
                 }
+            } else if (interaction.isModalSubmit()) {
+                console.log('Modal submitted:', interaction.customId, ', by:', interaction.user.username)
+                const [type, serial] = interaction.customId.split('#')
+                switch (type) {
+                    case 'PROMPT': {
+                        const data = await this._db.getPrompt(serial)
+                        const newPrompt = interaction.fields.getTextInputValue('new-prompt') ?? 'random dirt'
+                        await runGen('Here is the remix', newPrompt, data.aspect_ratio, data.count, interaction, this._db)
+                        break
+                    }
+                }
             }
         })
 
-        async function runGen(messageStart: string, prompt: string, aspectRatio: string, count: number, interaction: ButtonInteraction | CommandInteraction, db: DB) {
+        async function runGen(messageStart: string, prompt: string, aspectRatio: string, count: number, interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction, db: DB) {
             try {
                 await interaction.deferReply()
                 console.log(`Queuing up a batch of images for ${interaction.user.username}: ${prompt}`)
