@@ -1,6 +1,6 @@
 import Config, {IConfig} from './Config.js'
-import {Client, Events, GatewayIntentBits, TextChannel, ChannelType, CommandInteraction, ApplicationCommandOptionType, ButtonInteraction, Message} from 'discord.js'
-import Tasks, {IStringDictionary} from './Tasks.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, TextChannel} from 'discord.js'
+import Tasks from './Tasks.js'
 import dns from 'node:dns';
 import DB from './DB.js'
 
@@ -35,6 +35,40 @@ export default class StabledBot {
                     description: 'The prompt to generate images from.',
                     type: ApplicationCommandOptionType.String,
                     required: true
+                },{
+                    name: 'count',
+                    description: 'The number of images to generate.',
+                    type: ApplicationCommandOptionType.Integer,
+                    required: false,
+                    choices: [
+                        { name: '1', value: 1 },
+                        { name: '2', value: 2 },
+                        { name: '3', value: 3 },
+                        { name: '4', value: 4 },
+                        { name: '5', value: 5 },
+                        { name: '6', value: 6 }
+                    ]
+                },{
+                    name: 'aspect-ratio',
+                    description: 'Aspect ratio of the generated images.',
+                    type: ApplicationCommandOptionType.String,
+                    required: false,
+                    choices: [
+                        { name: 'Square 1:1', value: '1:1' },
+                        { name: 'Landscape 2:1', value: '2:1' },
+                        { name: 'Landscape 3:2', value: '3:2'},
+                        { name: 'Landscape 4:3', value: '4:3' },
+                        { name: 'Landscape 16:9', value: '16:9' },
+                        { name: 'Landscape 21:9', value: '21:9' },
+                        { name: 'Landscape 32:9', value: '32:9' },
+                        { name: 'Landscape Golden Ratio', value: '1.618:1' },
+                        { name: 'Portrait 1:2', value: '1:2' },
+                        { name: 'Portrait 2:3', value: '2:3'},
+                        { name: 'Portrait 3:4', value: '3:4' },
+                        { name: 'Portrait 9:16', value: '9:16' },
+                        { name: 'Portrait 9:32', value: '9:32' },
+                        { name: 'Portrait Golden Ratio', value: '1:1.618' },
+                    ]
                 }]
             })
             // c.application.commands.create({
@@ -67,12 +101,12 @@ export default class StabledBot {
                     case 'DELETE': {
                         interaction.deferReply()
                         const data = await this._db.getPrompt(serial)
-                        if(data?.user && data.user == interaction.user.username) {
+                        if (data?.user && data.user == interaction.user.username) {
                             console.log('Delete this:', interaction.message.id)
-                            if(!interaction.channel) {
+                            if (!interaction.channel) {
                                 const dmChannel = await interaction.user.createDM()
                                 const message = await dmChannel.messages.fetch(data.message_id)
-                                if(message) await message.delete()
+                                if (message) await message.delete()
                             } else {
                                 await interaction.message.delete()
                             }
@@ -81,8 +115,11 @@ export default class StabledBot {
                         break
                     }
                     case 'REDO': {
-                        const prompt = (await this._db.getPrompt(serial))?.prompt ?? 'random garbage'
-                        await runGen('Here you go again', prompt, interaction, this._db)
+                        const data = await this._db.getPrompt(serial)
+                        const prompt = data?.prompt ?? 'random garbage'
+                        const aspectRatio = data?.aspect_ratio ?? '1:1'
+                        const count = data?.count ?? 4
+                        await runGen('Here you go again', prompt, aspectRatio, count, interaction, this._db)
                         break
                     }
                 }
@@ -91,8 +128,13 @@ export default class StabledBot {
                 switch (interaction.commandName) {
                     case this.COMMAND_GEN: {
                         const prompt = interaction.options.get('prompt')?.value?.toString() ?? 'random garbage'
-                        await runGen('Here you go', prompt, interaction, this._db)
+                        const aspectRatio = interaction.options.get('aspect-ratio')?.value?.toString() ?? '1:1'
+                        const countValue = interaction.options.get('count')?.value
+                        const count = countValue ? Number(countValue) : 4
+                        await runGen('Here you go', prompt, aspectRatio, count, interaction, this._db)
                         break
+
+                        // TODO: Launch into a graphical flow before runGen, this should also be reusable by an edit command.
                     }
                     case 'storage_for_reuse': {
                         interaction.deferReply({
@@ -129,18 +171,20 @@ export default class StabledBot {
             }
         })
 
-        async function runGen(messageStart: string, prompt: string, interaction: ButtonInteraction | CommandInteraction, db: DB) {
+        async function runGen(messageStart: string, prompt: string, aspectRatio: string, count: number, interaction: ButtonInteraction | CommandInteraction, db: DB) {
             try {
                 await interaction.deferReply()
                 console.log(`Queuing up a batch of images for ${interaction.user.username}: ${prompt}`)
-                const images = await Tasks.generateImagesFromMessage(prompt)
+                const images = await Tasks.generateImages(prompt, aspectRatio, count)
                 if (Object.keys(images).length) {
                     console.log(`Generated ${Object.keys(images).length} image(s) for ${interaction.user.username}`)
-                    const reply = await Tasks.sendImagesAsReply(prompt, images, interaction, `${messageStart} ${interaction.user}!`)
+                    const reply = await Tasks.sendImagesAsReply(prompt, aspectRatio, count, images, interaction, `${messageStart} ${interaction.user}!`)
                     if (reply) {
                         for (const [serial, imageData] of Object.entries(images)) await db.registerPrompt(
                             serial,
                             prompt,
+                            aspectRatio,
+                            count,
                             interaction.user.username,
                             reply.id.toString()
                         )

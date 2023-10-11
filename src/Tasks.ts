@@ -4,9 +4,17 @@ import Config from './Config.js'
 export default class Tasks {
     private static _generatedImageCount: number = 0
 
-    static async generateImagesFromMessage(message: string): Promise<IStringDictionary> {
+    static async generateImages(prompt: string, aspectRatio: string, count: number): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
+        function calculateWidthHeightForAspectRatio(aspectRatioStr: string) {
+            const aspectRatioPair = aspectRatioStr.split(':')
+            const aspectRatio = Number(aspectRatioPair[0]) / Number(aspectRatioPair[1])
+            const width = Math.round(Math.sqrt(aspectRatio * (512*512)))
+            const height = Math.round(width / aspectRatio)
+            return { width, height }
+        }
+        const { width, height } = calculateWidthHeightForAspectRatio(aspectRatio)
         try {
             const response = await fetch(`${baseUrl}/txt2img`, {
                 method: 'post',
@@ -14,11 +22,11 @@ export default class Tasks {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    prompt: message,
-                    n_iter: 4,
+                    prompt,
+                    n_iter: count,
                     steps: 20,
-                    width: 512,
-                    height: 512,
+                    width,
+                    height,
                     // Try to figure out variations.
                 })
             })
@@ -44,7 +52,7 @@ export default class Tasks {
         }
     }
 
-    static async sendImagesAsReply(prompt: string, images: IStringDictionary, obj: ButtonInteraction | CommandInteraction, message: string) {
+    static async sendImagesAsReply(prompt: string, aspectRatio: string, count: number, images: IStringDictionary, obj: ButtonInteraction | CommandInteraction, message: string) {
         const attachments = Object.entries(images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
@@ -75,7 +83,7 @@ export default class Tasks {
                 files: attachments,
                 components: [row],
                 embeds: [{
-                    description: prompt
+                    description: `**Prompt**: ${prompt}\n**Aspect ratio**: ${aspectRatio}, **Count**: ${count}`
                 }]
             })
         } catch (e) {

@@ -36,15 +36,15 @@ export default class DB {
     // region Prompts
     private async ensurePromptsTable() {
         const db = await this.getDb()
-        await db.exec('CREATE TABLE IF NOT EXISTS prompts (id INTEGER PRIMARY KEY, reference TEXT UNIQUE, prompt TEXT, user TEXT, message_id TEXT)')
+        await db.exec('CREATE TABLE IF NOT EXISTS prompts (id INTEGER PRIMARY KEY, reference TEXT UNIQUE, prompt TEXT, aspect_ratio TEXT, count NUMBER, user TEXT, message_id TEXT)')
     }
 
-    async registerPrompt(reference: string, prompt: string, user: string, messageId: string) {
+    async registerPrompt(reference: string, prompt: string, aspect_ratio: string, count: number, user: string, messageId: string) {
         const db = await this.getDb()
         if (db) {
             await this.ensurePromptsTable()
-            const stmt = await db.prepare('INSERT INTO prompts (reference, prompt, user, message_id) VALUES (?, ?, ?, ?)')
-            const result = await stmt.run(reference, prompt, user, messageId)
+            const stmt = await db.prepare('INSERT INTO prompts (reference, prompt, aspect_ratio, count, user, message_id) VALUES (?, ?, ?, ?, ?, ?)')
+            const result = await stmt.run(reference, prompt, aspect_ratio, count, user, messageId)
             if (result.lastID) return true
         }
         return false
@@ -66,6 +66,8 @@ interface IPromptRow {
     id: number
     reference: string
     prompt: string
+    aspect_ratio: string
+    count: number
     user: string
     message_id: string
 }
