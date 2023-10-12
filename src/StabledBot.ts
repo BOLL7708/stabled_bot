@@ -43,7 +43,7 @@ export default class StabledBot {
                 console.log('Button clicked:', interaction.customId, ', by:', interaction.user.username)
                 const [type, serial] = interaction.customId.split('#')
                 switch (type) {
-                    case 'DELETE': {
+                    case Constants.BUTTON_DELETE: {
                         await interaction.deferReply({
                             ephemeral: true
                         })
@@ -69,17 +69,14 @@ export default class StabledBot {
                         }
                         break
                     }
-                    case 'REDO': {
+                    case Constants.BUTTON_REDO: {
                         const data = await this._db.getPrompt(serial)
-                        const prompt = data?.prompt ?? 'random waste'
-                        const aspectRatio = data?.aspect_ratio ?? '1:1'
-                        const count = data?.count ?? 4
-                        await runGen('Here you go again', prompt, aspectRatio, count, interaction, this._db)
+                        await Tasks.promptUser(Constants.PROMPT_REDO, interaction, serial, data?.prompt ?? '')
                         break
                     }
-                    case 'EDIT': {
+                    case Constants.BUTTON_EDIT: {
                         const data = await this._db.getPrompt(serial)
-                        await Tasks.promptUser(interaction, serial, data?.prompt ?? '')
+                        await Tasks.promptUser(Constants.PROMPT_EDIT, interaction, serial, data?.prompt ?? '')
                     }
                 }
 
@@ -103,21 +100,35 @@ export default class StabledBot {
                 console.log('Modal submitted:', interaction.customId, ', by:', interaction.user.username)
                 const [type, serial] = interaction.customId.split('#')
                 switch (type) {
-                    case 'PROMPT': {
+                    case Constants.PROMPT_EDIT: {
                         const data = await this._db.getPrompt(serial)
-                        const newPrompt = interaction.fields.getTextInputValue('new-prompt') ?? 'random dirt'
-                        await runGen('Here is the remix', newPrompt, data.aspect_ratio, data.count, interaction, this._db)
+                        const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
+                        await runGen('Here is the remix', newPrompt, data.aspect_ratio, data.count, interaction, this._db, data.reference)
                         break
+                    }
+                    case Constants.PROMPT_REDO: {
+                        const data = await this._db.getPrompt(serial)
+                        const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
+                        await runGen('Here you go again', newPrompt, data.aspect_ratio, data.count, interaction, this._db)
                     }
                 }
             }
         })
 
-        async function runGen(messageStart: string, prompt: string, aspectRatio: string, count: number, interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction, db: DB) {
+        async function runGen(
+            messageStart: string,
+            prompt: string,
+            aspectRatio: string,
+            count: number,
+            interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
+            db: DB,
+            serialToSeed?: string
+        ) {
             try {
                 await interaction.deferReply()
-                console.log(`Queuing up a batch of images for ${interaction.user.username}: ${prompt}`)
-                const images = await Tasks.generateImages(prompt, aspectRatio, count)
+                const seed = serialToSeed ? serialToSeed.split('-').pop() : undefined
+                console.log(`Queuing up a batch of images for [${interaction.user.username}]: "${prompt}"` + (seed ? `, seed: ${seed}` : ''))
+                const images = await Tasks.generateImages(prompt, aspectRatio, count, seed)
                 if (Object.keys(images).length) {
                     console.log(`Generated ${Object.keys(images).length} image(s) for ${interaction.user.username}`)
                     const reply = await Tasks.sendImagesAsReply(prompt, aspectRatio, count, images, interaction, `${messageStart} ${interaction.user}!`)

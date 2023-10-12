@@ -53,15 +53,17 @@ export default class Tasks {
                     )
             })
         try {
-            await rest.put(Routes.applicationCommands(config.clientId), {body: [
-                genCommand.toJSON()
-            ]})
+            await rest.put(Routes.applicationCommands(config.clientId), {
+                body: [
+                    genCommand.toJSON()
+                ]
+            })
         } catch (e) {
             console.error(e)
         }
     }
 
-    static async generateImages(prompt: string, aspectRatio: string, count: number): Promise<IStringDictionary> {
+    static async generateImages(prompt: string, aspectRatio: string, count: number, predefinedSeed?: string): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
 
@@ -74,20 +76,24 @@ export default class Tasks {
         }
 
         const {width, height} = calculateWidthHeightForAspectRatio(aspectRatio)
+
+        const body = {
+            prompt,
+            n_iter: count,
+            steps: 20,
+            width,
+            height,
+            seed: predefinedSeed ?? -1
+            // TODO: Try to figure out variations.
+        }
+
         try {
             const response = await fetch(`${baseUrl}/txt2img`, {
                 method: 'post',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    prompt,
-                    n_iter: count,
-                    steps: 20,
-                    width,
-                    height,
-                    // Try to figure out variations.
-                })
+                body: JSON.stringify(body)
             })
             if (response.ok) {
                 const json: IStabledResponse = await response.json()
@@ -132,15 +138,15 @@ export default class Tasks {
         //     row.addComponents(newButton)
         // }
         const deleteButton = new ButtonBuilder()
-            .setCustomId('DELETE#' + Object.keys(images).pop())
+            .setCustomId(Constants.BUTTON_DELETE + '#' + Object.keys(images).shift())
             .setEmoji('❌')
             .setStyle(ButtonStyle.Secondary)
         const redoButton = new ButtonBuilder()
-            .setCustomId('REDO#' + Object.keys(images).pop())
+            .setCustomId(Constants.BUTTON_REDO + '#' + Object.keys(images).shift())
             .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
         const editButton = new ButtonBuilder()
-            .setCustomId('EDIT#' + Object.keys(images).pop())
+            .setCustomId(Constants.BUTTON_EDIT + '#' + Object.keys(images).shift())
             .setEmoji('📝')
             .setStyle(ButtonStyle.Secondary)
         row.addComponents(deleteButton, redoButton, editButton)
@@ -160,16 +166,21 @@ export default class Tasks {
         return undefined
     }
 
-    static async promptUser(obj: ButtonInteraction | CommandInteraction, reference: string, prompt: string) {
+    static async promptUser(
+        customIdPrefix: string,
+        obj: ButtonInteraction | CommandInteraction,
+        reference: string,
+        prompt: string
+    ) {
         const textInput = new TextInputBuilder()
-            .setCustomId(`new-prompt`)
-            .setLabel('Edit the prompt:')
+            .setCustomId(Constants.INPUT_NEW_PROMPT)
+            .setLabel('Prompt for generation images:')
             .setValue(prompt)
             .setStyle(TextInputStyle.Paragraph)
         const promptRow = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput)
         const modal = new ModalBuilder()
-            .setCustomId(`PROMPT#${reference}`)
+            .setCustomId(`${customIdPrefix}#${reference}`)
             .setTitle('Prompt')
             .addComponents(promptRow)
         await obj.showModal(modal)
