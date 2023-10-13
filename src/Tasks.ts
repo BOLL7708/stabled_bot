@@ -70,7 +70,7 @@ export default class Tasks {
         }
     }
 
-    static async generateImages(prompt: string, negativePrompt: string, aspectRatio: string, count: number, predefinedSeed?: string, variation?: boolean): Promise<IStringDictionary> {
+    static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
 
@@ -82,19 +82,19 @@ export default class Tasks {
             return {width, height}
         }
 
-        const {width, height} = calculateWidthHeightForAspectRatio(aspectRatio)
+        const {width, height} = calculateWidthHeightForAspectRatio(options.aspectRatio)
 
         const body = {
-            prompt,
-            negative_prompt: negativePrompt,
-            n_iter: count,
+            prompt: options.prompt,
+            negative_prompt: options.negativePrompt,
+            n_iter: options.count,
             steps: 20,
             width,
             height,
-            seed: predefinedSeed ?? -1
+            seed: options.predefinedSeed ?? -1
             // TODO: Try to figure out variations.
         }
-        if (variation) {
+        if (options.variation) {
             body['subseed'] = -1
             body['subseed_strength'] = 0.1
         }
@@ -128,51 +128,42 @@ export default class Tasks {
         }
     }
 
-    static async sendImagesAsReply(
-        prompt: string,
-        negativePrompt: string,
-        aspectRatio: string,
-        count: number,
-        images: IStringDictionary,
-        obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
-        message: string,
-        variations: boolean
-    ) {
-        const attachments = Object.entries(images).map(([fileName, imageData]) => {
+    static async sendImagesAsReply(options: SendImagesOptions) {
+        const attachments = Object.entries(options.images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
         const row = new ActionRowBuilder<ButtonBuilder>()
         let buttonIndex = 0
         const deleteButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_DELETE + '#' + Object.keys(images).shift())
+            .setCustomId(Constants.BUTTON_DELETE + '#' + Object.keys(options.images).shift())
             .setEmoji('❌')
             .setStyle(ButtonStyle.Secondary)
         const redoButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_REDO + '#' + Object.keys(images).shift())
+            .setCustomId(Constants.BUTTON_REDO + '#' + Object.keys(options.images).shift())
             .setEmoji('🔀')
             .setStyle(ButtonStyle.Secondary)
         const editButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_EDIT + '#' + Object.keys(images).shift())
+            .setCustomId(Constants.BUTTON_EDIT + '#' + Object.keys(options.images).shift())
             .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
         const varyButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_VARY + '#' + Object.keys(images).shift())
+            .setCustomId(Constants.BUTTON_VARY + '#' + Object.keys(options.images).shift())
             .setEmoji('🎛')
             .setStyle(ButtonStyle.Secondary)
 
         const embeds: (APIEmbed|JSONEncodable<APIEmbed>)[] = []
-        if(variations) {
+        if(options.variations) {
             row.addComponents(deleteButton)
         } else {
             row.addComponents(deleteButton, redoButton, editButton, varyButton)
             embeds.push({
-                description: `**Prompt**: ${prompt}\n**Negative prompt**: ${negativePrompt}\n**Aspect ratio**: ${aspectRatio}, **Count**: ${count}`
+                description: `**Prompt**: ${prompt}\n**Negative prompt**: ${options.negativePrompt}\n**Aspect ratio**: ${options.aspectRatio}, **Count**: ${options.count}`
             })
         }
 
         try {
-            return await obj.editReply({
-                content: message,
+            return await options.obj.editReply({
+                content: options.message,
                 files: attachments,
                 components: [row],
                 embeds
@@ -183,24 +174,17 @@ export default class Tasks {
         return undefined
     }
 
-    static async promptUser(
-        customIdPrefix: string,
-        title: string,
-        obj: ButtonInteraction | CommandInteraction,
-        reference: string,
-        prompt: string,
-        negativePrompt: string
-    ) {
+    static async promptUser(options: PromptUserOptions) {
         const textInput = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_PROMPT)
             .setLabel("The positive prompt, include elements.")
-            .setValue(prompt)
+            .setValue(options.prompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         const textInput2 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_NEGATIVE_PROMPT)
             .setLabel("The negative prompt, exclude elements.")
-            .setValue(negativePrompt)
+            .setValue(options.negativePrompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false)
         const promptRow = new ActionRowBuilder<TextInputBuilder>()
@@ -208,10 +192,10 @@ export default class Tasks {
         const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput2)
         const modal = new ModalBuilder()
-            .setCustomId(`${customIdPrefix}#${reference}`)
-            .setTitle(title)
+            .setCustomId(`${options.customIdPrefix}#${options.reference}`)
+            .setTitle(options.title)
             .addComponents(promptRow, promptRow2)
-        await obj.showModal(modal)
+        await options.obj.showModal(modal)
     }
 
     static async showButtons(dataEntries: IPromptRow[], interaction: ButtonInteraction | ModalSubmitInteraction) {
@@ -291,4 +275,40 @@ interface IStabledResponse {
 
 export interface IStringDictionary {
     [key: string]: string
+}
+
+export class GenerateImagesOptions {
+    constructor(
+        public prompt: string = 'random garbage',
+        public negativePrompt: string = '',
+        public aspectRatio: string = '1:1',
+        public count: number = 4,
+        public predefinedSeed: string|undefined,
+        public variation: boolean|undefined,
+        public hires: boolean|undefined
+    ) {}
+}
+
+export class SendImagesOptions {
+    constructor(
+        public prompt: string = 'random waste',
+        public negativePrompt: string = '',
+        public aspectRatio: string = '1:1',
+        public count: number = 4,
+        public images: IStringDictionary = {},
+        public obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
+        public message: string = '',
+        public variations: boolean|undefined
+    ) {}
+}
+
+export class PromptUserOptions {
+    constructor(
+        public customIdPrefix: string = '',
+        public title: string = '',
+        public obj: ButtonInteraction | CommandInteraction | undefined,
+        public reference: string = '',
+        public prompt: string = 'random dirt',
+        public negativePrompt: string = ''
+    ) {}
 }

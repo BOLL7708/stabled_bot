@@ -39,12 +39,12 @@ export default class DB {
         await db.exec('CREATE TABLE IF NOT EXISTS prompts (id INTEGER PRIMARY KEY, reference TEXT UNIQUE, prompt TEXT, negative_prompt TEXT, aspect_ratio TEXT, count NUMBER, user TEXT, message_id TEXT)')
     }
 
-    async registerPrompt(reference: string, prompt: string, negativePrompt: string, aspect_ratio: string, count: number, user: string, messageId: string) {
+    async registerPrompt(row: IPromptRow) {
         const db = await this.getDb()
         if (db) {
             await this.ensurePromptsTable()
             const stmt = await db.prepare('INSERT INTO prompts (reference, prompt, negative_prompt, aspect_ratio, count, user, message_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            const result = await stmt.run(reference, prompt, negativePrompt, aspect_ratio, count, user, messageId)
+            const result = await stmt.run(...Object.values(row))
             if (result.lastID) return true
         }
         return false
@@ -70,7 +70,7 @@ export default class DB {
 }
 
 export interface IPromptRow {
-    id: number
+    id?: number
     reference: string
     prompt: string
     negative_prompt: string

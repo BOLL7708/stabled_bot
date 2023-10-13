@@ -1,6 +1,6 @@
 import Config, {IConfig} from './Config.js'
 import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
-import Tasks from './Tasks.js'
+import Tasks, {GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
 import dns from 'node:dns';
 import DB from './DB.js'
 import Constants from './Constants.js'
@@ -70,11 +70,25 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_REDO: {
-                        await Tasks.promptUser(Constants.PROMPT_REDO, "Random Seed", interaction, serial, data?.prompt ?? '', data?.negative_prompt ?? '')
+                        await Tasks.promptUser(new PromptUserOptions(
+                            Constants.PROMPT_REDO,
+                            "Random Seed",
+                            interaction,
+                            serial,
+                            data?.prompt ?? '',
+                            data?.negative_prompt ?? ''
+                        ))
                         break
                     }
                     case Constants.BUTTON_EDIT: {
-                        await Tasks.promptUser(Constants.PROMPT_EDIT, "Reused Seed", interaction, serial, data?.prompt ?? '', data?.negative_prompt ?? '')
+                        await Tasks.promptUser(new PromptUserOptions(
+                            Constants.PROMPT_EDIT,
+                            "Reused Seed",
+                            interaction,
+                            serial,
+                            data?.prompt ?? '',
+                            data?.negative_prompt ?? ''
+                        ))
                         break
                     }
                     case Constants.BUTTON_VARY: {
@@ -145,18 +159,18 @@ export default class StabledBot {
 
                 // Generate
                 console.log(`Queuing up a batch of images for [${interaction.user.username}]: +"${prompt}" -"${negativePrompt}"` + (seed ? `, seed: ${seed}` : ''))
-                const images = await Tasks.generateImages(
+                const images = await Tasks.generateImages(new GenerateImagesOptions(
                     prompt,
                     negativePrompt,
                     aspectRatio,
                     count,
                     seed,
                     variations
-                )
+                ))
                 if (Object.keys(images).length) {
                     // Send to Discord
                     console.log(`Generated ${Object.keys(images).length} image(s) for ${interaction.user.username}`)
-                    const reply = await Tasks.sendImagesAsReply(
+                    const reply = await Tasks.sendImagesAsReply(new SendImagesOptions(
                         prompt,
                         negativePrompt,
                         aspectRatio,
@@ -165,18 +179,18 @@ export default class StabledBot {
                         interaction,
                         `${messageStart} ${interaction.user}!`,
                         variations
-                    )
+                    ))
                     if (reply) {
                         // Store in DB
-                        for (const [serial, imageData] of Object.entries(images)) await db.registerPrompt(
-                            serial,
+                        for (const [serial, imageData] of Object.entries(images)) await db.registerPrompt({
+                            reference: serial,
                             prompt,
-                            negativePrompt,
-                            aspectRatio,
+                            negative_prompt: negativePrompt,
+                            aspect_ratio: aspectRatio,
                             count,
-                            interaction.user.username,
-                            reply.id.toString()
-                        )
+                            user: interaction.user.username,
+                            message_id: reply.id.toString()
+                        })
                     }
                 } else {
                     await interaction.editReply({
