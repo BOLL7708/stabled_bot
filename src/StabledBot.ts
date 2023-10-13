@@ -75,6 +75,18 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_EDIT: {
                         await Tasks.promptUser(Constants.PROMPT_EDIT, "Reused Seed", interaction, serial, data?.prompt ?? '', data?.negative_prompt ?? '')
+                        break
+                    }
+                    case Constants.BUTTON_VARY: {
+                        const dataEntries = await this._db.getPrompts(data?.message_id ?? '')
+                        if(dataEntries.length) {
+                            await Tasks.showButtons(dataEntries, interaction)
+                        }
+                        break
+                    }
+                    case Constants.BUTTON_VARIANT: {
+                        await runGen('I did the varying ', data?.prompt ?? '', data?.negative_prompt ?? '', data?.aspect_ratio ?? '1:1', data?.count ?? 4, interaction, this._db, data?.reference, true)
+                        break
                     }
                 }
 
@@ -124,7 +136,8 @@ export default class StabledBot {
             count: number,
             interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
             db: DB,
-            serialToSeed?: string
+            serialToSeed?: string,
+            variations?: boolean
         ) {
             try {
                 await interaction.deferReply()
@@ -137,7 +150,8 @@ export default class StabledBot {
                     negativePrompt,
                     aspectRatio,
                     count,
-                    seed
+                    seed,
+                    variations
                 )
                 if (Object.keys(images).length) {
                     // Send to Discord
@@ -149,7 +163,8 @@ export default class StabledBot {
                         count,
                         images,
                         interaction,
-                        `${messageStart} ${interaction.user}!`
+                        `${messageStart} ${interaction.user}!`,
+                        variations
                     )
                     if (reply) {
                         // Store in DB

@@ -1,6 +1,7 @@
-import {REST, Routes, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle} from 'discord.js'
+import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle, JSONEncodable} from 'discord.js'
 import Config, {IConfig} from './Config.js'
 import Constants from './Constants.js'
+import {IPromptRow} from './DB.js'
 
 export default class Tasks {
     private static _generatedImageCount: number = 0
@@ -69,7 +70,7 @@ export default class Tasks {
         }
     }
 
-    static async generateImages(prompt: string, negativePrompt: string, aspectRatio: string, count: number, predefinedSeed?: string): Promise<IStringDictionary> {
+    static async generateImages(prompt: string, negativePrompt: string, aspectRatio: string, count: number, predefinedSeed?: string, variation?: boolean): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
 
@@ -93,6 +94,10 @@ export default class Tasks {
             seed: predefinedSeed ?? -1
             // TODO: Try to figure out variations.
         }
+        if (variation) {
+            body['subseed'] = -1
+            body['subseed_strength'] = 0.1
+        }
 
         try {
             const response = await fetch(`${baseUrl}/txt2img`, {
@@ -109,8 +114,7 @@ export default class Tasks {
                 for (const image of json.images) {
                     const seed = info.all_seeds.shift()
                     if (seed) {
-                        this._generatedImageCount++ // TODO: Switch this to a time-based value, or add a cron-job to reset this every day.
-                        const serial = (this._generatedImageCount + 100000).toString().substring(1) + '-' + seed
+                        const serial = `${Date.now()}${++this._generatedImageCount}-${seed}`
                         imageDic[serial] = image
                     }
                 }
@@ -131,20 +135,14 @@ export default class Tasks {
         count: number,
         images: IStringDictionary,
         obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
-        message: string
+        message: string,
+        variations: boolean
     ) {
         const attachments = Object.entries(images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
         const row = new ActionRowBuilder<ButtonBuilder>()
         let buttonIndex = 0
-        // for(const serial of Object.keys(images)) {
-        //     const newButton = new ButtonBuilder()
-        //         .setCustomId(serial)
-        //         .setLabel(`${++buttonIndex}🔁`)
-        //         .setStyle(ButtonStyle.Secondary)
-        //     row.addComponents(newButton)
-        // }
         const deleteButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_DELETE + '#' + Object.keys(images).shift())
             .setEmoji('❌')
@@ -157,16 +155,27 @@ export default class Tasks {
             .setCustomId(Constants.BUTTON_EDIT + '#' + Object.keys(images).shift())
             .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
-        row.addComponents(deleteButton, redoButton, editButton)
+        const varyButton = new ButtonBuilder()
+            .setCustomId(Constants.BUTTON_VARY + '#' + Object.keys(images).shift())
+            .setEmoji('🎛')
+            .setStyle(ButtonStyle.Secondary)
+
+        const embeds: (APIEmbed|JSONEncodable<APIEmbed>)[] = []
+        if(variations) {
+            row.addComponents(deleteButton)
+        } else {
+            row.addComponents(deleteButton, redoButton, editButton, varyButton)
+            embeds.push({
+                description: `**Prompt**: ${prompt}\n**Negative prompt**: ${negativePrompt}\n**Aspect ratio**: ${aspectRatio}, **Count**: ${count}`
+            })
+        }
 
         try {
             return await obj.editReply({
                 content: message,
                 files: attachments,
                 components: [row],
-                embeds: [{
-                    description: `**Prompt**: ${prompt}\n**Negative prompt**: ${negativePrompt}\n**Aspect ratio**: ${aspectRatio}, **Count**: ${count}`
-                }]
+                embeds
             })
         } catch (e) {
             console.error(e)
@@ -203,6 +212,23 @@ export default class Tasks {
             .setTitle(title)
             .addComponents(promptRow, promptRow2)
         await obj.showModal(modal)
+    }
+
+    static async showButtons(dataEntries: IPromptRow[], interaction: ButtonInteraction | ModalSubmitInteraction) {
+        const row = new ActionRowBuilder<ButtonBuilder>()
+        let buttonIndex = 0
+        for (const data of dataEntries) {
+            const button = new ButtonBuilder()
+                .setCustomId(Constants.BUTTON_VARIANT + '#' + data.reference)
+                .setLabel(`Image #${++buttonIndex}`)
+                .setStyle(ButtonStyle.Secondary)
+            row.addComponents(button)
+        }
+        await interaction.reply({
+            content: 'Pick which image to make variations from:',
+            ephemeral: true,
+            components: [row]
+        })
     }
 }
 

@@ -58,7 +58,14 @@ export default class DB {
         }
         return undefined
     }
-
+    async getPrompts(messageId: string): Promise<IPromptRow[]> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensurePromptsTable()
+            return await db.all('SELECT * FROM prompts WHERE message_id = ?', messageId)
+        }
+        return []
+    }
     // endregion
 }
 
