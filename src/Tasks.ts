@@ -12,9 +12,15 @@ export default class Tasks {
             .setDescription('Generate an image from a prompt.')
             .addStringOption(option => {
                 return option
-                    .setName('prompt')
-                    .setDescription('The prompt to generate images from.')
+                    .setName(Constants.OPTION_PROMPT)
+                    .setDescription('The positive prompt that includes elements.')
                     .setRequired(true)
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_NEGATIVE_PROMPT)
+                    .setDescription('The negative prompt that excludes elements.')
+                    .setRequired(false)
             })
             .addIntegerOption(option => {
                 return option
@@ -63,7 +69,7 @@ export default class Tasks {
         }
     }
 
-    static async generateImages(prompt: string, aspectRatio: string, count: number, predefinedSeed?: string): Promise<IStringDictionary> {
+    static async generateImages(prompt: string, negativePrompt: string, aspectRatio: string, count: number, predefinedSeed?: string): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
 
@@ -79,6 +85,7 @@ export default class Tasks {
 
         const body = {
             prompt,
+            negative_prompt: negativePrompt,
             n_iter: count,
             steps: 20,
             width,
@@ -119,6 +126,7 @@ export default class Tasks {
 
     static async sendImagesAsReply(
         prompt: string,
+        negativePrompt: string,
         aspectRatio: string,
         count: number,
         images: IStringDictionary,
@@ -143,11 +151,11 @@ export default class Tasks {
             .setStyle(ButtonStyle.Secondary)
         const redoButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_REDO + '#' + Object.keys(images).shift())
-            .setEmoji('🔁')
+            .setEmoji('🔀')
             .setStyle(ButtonStyle.Secondary)
         const editButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_EDIT + '#' + Object.keys(images).shift())
-            .setEmoji('📝')
+            .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
         row.addComponents(deleteButton, redoButton, editButton)
 
@@ -157,7 +165,7 @@ export default class Tasks {
                 files: attachments,
                 components: [row],
                 embeds: [{
-                    description: `**Prompt**: ${prompt}\n**Aspect ratio**: ${aspectRatio}, **Count**: ${count}`
+                    description: `**Prompt**: ${prompt}\n**Negative prompt**: ${negativePrompt}\n**Aspect ratio**: ${aspectRatio}, **Count**: ${count}`
                 }]
             })
         } catch (e) {
@@ -168,21 +176,32 @@ export default class Tasks {
 
     static async promptUser(
         customIdPrefix: string,
+        title: string,
         obj: ButtonInteraction | CommandInteraction,
         reference: string,
-        prompt: string
+        prompt: string,
+        negativePrompt: string
     ) {
         const textInput = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_PROMPT)
-            .setLabel('Prompt for generation images:')
+            .setLabel("The positive prompt, include elements.")
             .setValue(prompt)
             .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        const textInput2 = new TextInputBuilder()
+            .setCustomId(Constants.INPUT_NEW_NEGATIVE_PROMPT)
+            .setLabel("The negative prompt, exclude elements.")
+            .setValue(negativePrompt)
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(false)
         const promptRow = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput)
+        const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput2)
         const modal = new ModalBuilder()
             .setCustomId(`${customIdPrefix}#${reference}`)
-            .setTitle('Prompt')
-            .addComponents(promptRow)
+            .setTitle(title)
+            .addComponents(promptRow, promptRow2)
         await obj.showModal(modal)
     }
 }
