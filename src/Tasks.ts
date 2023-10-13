@@ -2,6 +2,7 @@ import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, 
 import Config, {IConfig} from './Config.js'
 import Constants from './Constants.js'
 import {IPromptRow} from './DB.js'
+import Utils from './Utils.js'
 
 export default class Tasks {
     private static _generatedImageCount: number = 0
@@ -73,16 +74,7 @@ export default class Tasks {
     static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
         const config = await Config.get()
         const baseUrl = config.apiUrl
-
-        function calculateWidthHeightForAspectRatio(aspectRatioStr: string) {
-            const aspectRatioPair = aspectRatioStr.split(':')
-            const aspectRatio = Number(aspectRatioPair[0]) / Number(aspectRatioPair[1])
-            const width = Math.round(Math.sqrt(aspectRatio * (512 * 512)))
-            const height = Math.round(width / aspectRatio)
-            return {width, height}
-        }
-
-        const {width, height} = calculateWidthHeightForAspectRatio(options.aspectRatio)
+        const {width, height} = Utils.calculateWidthHeightForAspectRatio(options.aspectRatio)
 
         const body = {
             prompt: options.prompt,
@@ -120,7 +112,7 @@ export default class Tasks {
                 for (const image of json.images) {
                     const seed = info.all_seeds.shift()
                     if (seed) {
-                        const serial = `${Date.now()}${++this._generatedImageCount}-${seed}`
+                        const serial = Utils.getSerial(seed, ++this._generatedImageCount)
                         imageDic[serial] = image
                     }
                 }
@@ -139,7 +131,6 @@ export default class Tasks {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
         })
         const row = new ActionRowBuilder<ButtonBuilder>()
-        let buttonIndex = 0
         const deleteButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_DELETE + '#' + Object.keys(options.images).shift())
             .setEmoji('❌')
@@ -161,8 +152,8 @@ export default class Tasks {
             .setEmoji('🍄')
             .setStyle(ButtonStyle.Secondary)
 
-        const embeds: (APIEmbed|JSONEncodable<APIEmbed>)[] = []
-        if(options.variations) {
+        const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
+        if (options.variations) {
             row.addComponents(deleteButton)
         } else {
             row.addComponents(deleteButton, redoButton, editButton, varyButton, upresButton)
@@ -293,10 +284,11 @@ export class GenerateImagesOptions {
         public negativePrompt: string = '',
         public aspectRatio: string = '1:1',
         public count: number = 4,
-        public predefinedSeed: string|undefined,
-        public variation: boolean|undefined,
-        public hires: boolean|undefined
-    ) {}
+        public predefinedSeed: string | undefined,
+        public variation: boolean | undefined,
+        public hires: boolean | undefined
+    ) {
+    }
 }
 
 export class SendImagesOptions {
@@ -308,8 +300,9 @@ export class SendImagesOptions {
         public images: IStringDictionary = {},
         public obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
         public message: string = '',
-        public variations: boolean|undefined
-    ) {}
+        public variations: boolean | undefined
+    ) {
+    }
 }
 
 export class PromptUserOptions {
@@ -320,5 +313,6 @@ export class PromptUserOptions {
         public reference: string = '',
         public prompt: string = 'random dirt',
         public negativePrompt: string = ''
-    ) {}
+    ) {
+    }
 }
