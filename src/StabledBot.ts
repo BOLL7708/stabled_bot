@@ -94,12 +94,46 @@ export default class StabledBot {
                     case Constants.BUTTON_VARY: {
                         const dataEntries = await this._db.getPrompts(data?.message_id ?? '')
                         if(dataEntries.length) {
-                            await Tasks.showButtons(dataEntries, interaction)
+                            await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations from:', dataEntries, interaction)
                         }
                         break
                     }
                     case Constants.BUTTON_VARIANT: {
-                        await runGen('I did the varying ', data?.prompt ?? '', data?.negative_prompt ?? '', data?.aspect_ratio ?? '1:1', data?.count ?? 4, interaction, this._db, data?.reference, true)
+                        await runGen(
+                            'I tweaked a bit ',
+                            data?.prompt ?? '',
+                            data?.negative_prompt ?? '',
+                            data?.aspect_ratio ?? '1:1',
+                            data?.count ?? 4,
+                            interaction,
+                            this._db,
+                            data?.reference,
+                            true
+                        )
+                        break
+                    }
+                    case Constants.BUTTON_UPRES: {
+                        console.log('Show upres buttons!')
+                        const dataEntries = await this._db.getPrompts(data?.message_id ?? '')
+                        if(dataEntries.length) {
+                            await Tasks.showButtons(Constants.BUTTON_UPRESSING, 'Pick which image to upres:', dataEntries, interaction)
+                        }
+                        break
+                    }
+                    case Constants.BUTTON_UPRESSING: {
+                        console.log('Upressing ordered!')
+                        await runGen(
+                            'I did it higher res ',
+                            data?.prompt ?? '',
+                            data?.negative_prompt ?? '',
+                            data.aspect_ratio,
+                            1,
+                            interaction,
+                            this._db,
+                            data.reference,
+                            false,
+                            true
+                        )
                         break
                     }
                 }
@@ -151,7 +185,8 @@ export default class StabledBot {
             interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
             db: DB,
             serialToSeed?: string,
-            variations?: boolean
+            variations?: boolean,
+            hires?: boolean
         ) {
             try {
                 await interaction.deferReply()
@@ -165,7 +200,8 @@ export default class StabledBot {
                     aspectRatio,
                     count,
                     seed,
-                    variations
+                    variations,
+                    hires
                 ))
                 if (Object.keys(images).length) {
                     // Send to Discord

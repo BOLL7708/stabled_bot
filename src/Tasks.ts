@@ -98,6 +98,12 @@ export default class Tasks {
             body['subseed'] = -1
             body['subseed_strength'] = 0.1
         }
+        if (options.hires) {
+            body['enable_hr'] = true
+            body['hr_scale'] = 2
+            body['hr_upscaler'] = 'Latent'
+            body['denoising_strength'] = 0.7
+        }
 
         try {
             const response = await fetch(`${baseUrl}/txt2img`, {
@@ -150,14 +156,18 @@ export default class Tasks {
             .setCustomId(Constants.BUTTON_VARY + '#' + Object.keys(options.images).shift())
             .setEmoji('🎛')
             .setStyle(ButtonStyle.Secondary)
+        const upresButton = new ButtonBuilder()
+            .setCustomId(Constants.BUTTON_UPRES + '#' + Object.keys(options.images).shift())
+            .setEmoji('🍄')
+            .setStyle(ButtonStyle.Secondary)
 
         const embeds: (APIEmbed|JSONEncodable<APIEmbed>)[] = []
         if(options.variations) {
             row.addComponents(deleteButton)
         } else {
-            row.addComponents(deleteButton, redoButton, editButton, varyButton)
+            row.addComponents(deleteButton, redoButton, editButton, varyButton, upresButton)
             embeds.push({
-                description: `**Prompt**: ${prompt}\n**Negative prompt**: ${options.negativePrompt}\n**Aspect ratio**: ${options.aspectRatio}, **Count**: ${options.count}`
+                description: `**Prompt**: ${options.prompt}\n**Negative prompt**: ${options.negativePrompt}\n**Aspect ratio**: ${options.aspectRatio}, **Count**: ${options.count}`
             })
         }
 
@@ -198,18 +208,18 @@ export default class Tasks {
         await options.obj.showModal(modal)
     }
 
-    static async showButtons(dataEntries: IPromptRow[], interaction: ButtonInteraction | ModalSubmitInteraction) {
+    static async showButtons(type: string, description: string, dataEntries: IPromptRow[], interaction: ButtonInteraction | ModalSubmitInteraction) {
         const row = new ActionRowBuilder<ButtonBuilder>()
         let buttonIndex = 0
         for (const data of dataEntries) {
             const button = new ButtonBuilder()
-                .setCustomId(Constants.BUTTON_VARIANT + '#' + data.reference)
+                .setCustomId(type + '#' + data.reference)
                 .setLabel(`Image #${++buttonIndex}`)
                 .setStyle(ButtonStyle.Secondary)
             row.addComponents(button)
         }
         await interaction.reply({
-            content: 'Pick which image to make variations from:',
+            content: description,
             ephemeral: true,
             components: [row]
         })

@@ -4,6 +4,8 @@ export default class Constants {
     static BUTTON_REDO = 'redo'
     static BUTTON_VARY = 'vary'
     static BUTTON_VARIANT = 'variant'
+    static BUTTON_UPRES = 'upres'
+    static BUTTON_UPRESSING = 'upressing'
     static COMMAND_GEN = 'gen'
     static OPTION_PROMPT = 'prompt'
     static OPTION_NEGATIVE_PROMPT = 'negative-prompt'
