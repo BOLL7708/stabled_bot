@@ -5,8 +5,6 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
-    "discord.js": "^14.13.0",
-    "sqlite": "^5.0.1",
-    "sqlite3": "^5.1.6"
+    "discord.js": "^14.13.0"
   }
 }

@@ -15,4 +15,9 @@ export default class Constants {
     static PROMPT_REDO = 'prompt-redo'
     static INPUT_NEW_PROMPT = 'new-prompt'
     static INPUT_NEW_NEGATIVE_PROMPT = 'new-negative-prompt'
+    static FIELD_USER = 'User'
+    static FIELD_PROMPT = 'Prompt'
+    static FIELD_NEGATIVE_PROMPT = 'Negative-Prompt'
+    static FIELD_COUNT = 'Count'
+    static FIELD_ASPECT_RATIO = 'Aspect-Ratio'
 }

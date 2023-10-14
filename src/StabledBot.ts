@@ -1,19 +1,18 @@
 import Config, {IConfig} from './Config.js'
 import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
-import Tasks, {GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
+import Tasks, {EmbedFieldData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
 import dns from 'node:dns';
-import DB from './DB.js'
 import Constants from './Constants.js'
 
 export default class StabledBot {
     private _config: IConfig
-    private _db: DB
+    private _dataCache = new Map<number, EmbedFieldData>()
+    private _interactionIndex = 0
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
 
         this._config = await Config.get()
-        this._db = new DB(this._config)
         await Tasks.registerCommands(this._config)
 
         // Create Discord client
@@ -39,7 +38,9 @@ export default class StabledBot {
             if (interaction.isButton()) {
                 console.log('Button clicked:', interaction.customId, 'by:', interaction.user.username)
                 const [type, serial] = interaction.customId.split('#')
-                const data = await this._db.getPrompt(serial)
+                // const data = await this._db.getPrompt(serial)
+                const data = await Tasks.getDataFromMessage(interaction.message)
+                console.log('Data from embeds and attachments:', data)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
                         if(!interaction.channel || !interaction.guild) {
@@ -61,29 +62,31 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_REDO: {
+                        this._dataCache.set(++this._interactionIndex, data)
                         await Tasks.promptUser(new PromptUserOptions(
                             Constants.PROMPT_REDO,
                             "Random Seed",
                             interaction,
-                            serial,
-                            data?.prompt ?? '',
-                            data?.negative_prompt ?? ''
+                            this._interactionIndex.toString(),
+                            data.prompt,
+                            data.negativePrompt
                         ))
                         break
                     }
                     case Constants.BUTTON_EDIT: {
+                        this._dataCache.set(++this._interactionIndex, data)
                         await Tasks.promptUser(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
                             "Reused Seed",
                             interaction,
-                            serial,
-                            data?.prompt ?? '',
-                            data?.negative_prompt ?? ''
+                            this._interactionIndex.toString(),
+                            data.prompt,
+                            data.negativePrompt
                         ))
                         break
                     }
                     case Constants.BUTTON_VARY: {
-                        const dataEntries = await this._db.getPrompts(data?.message_id ?? '')
+                        const dataEntries = [] // TODO
                         if(dataEntries.length) {
                             await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations from:', dataEntries, interaction)
                         }
@@ -93,18 +96,17 @@ export default class StabledBot {
                         await runGen(
                             'Here are the variations ',
                             data?.prompt ?? '',
-                            data?.negative_prompt ?? '',
-                            data?.aspect_ratio ?? '1:1',
+                            data?.negativePrompt ?? '',
+                            data?.aspectRatio ?? '1:1',
                             data?.count ?? 4,
                             interaction,
-                            this._db,
-                            data?.reference,
+                            (Math.random()*100000).toString(),  // data?.reference,
                             true
                         )
                         break
                     }
                     case Constants.BUTTON_UPRES: {
-                        const dataEntries = await this._db.getPrompts(data?.message_id ?? '')
+                        const dataEntries = [] // TODO
                         if(dataEntries.length) {
                             await Tasks.showButtons(Constants.BUTTON_UPRESSING, 'Pick which image to upres:', dataEntries, interaction)
                         }
@@ -114,12 +116,11 @@ export default class StabledBot {
                         await runGen(
                             'I did it higher res ',
                             data?.prompt ?? '',
-                            data?.negative_prompt ?? '',
-                            data.aspect_ratio,
+                            data?.negativePrompt ?? '',
+                            data.aspectRatio,
                             1,
                             interaction,
-                            this._db,
-                            data.reference,
+                            (Math.random()*100000).toString(),  // data?.reference,
                             false,
                             true
                         )
@@ -135,7 +136,7 @@ export default class StabledBot {
                         const aspectRatio = interaction.options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
                         const countValue = interaction.options.get(Constants.OPTION_COUNT)?.value
                         const count = countValue ? Number(countValue) : 4
-                        await runGen('Here you go', prompt, promptNegative, aspectRatio, count, interaction, this._db)
+                        await runGen('Here you go', prompt, promptNegative, aspectRatio, count, interaction)
                         break
                     }
                     default: {
@@ -146,20 +147,22 @@ export default class StabledBot {
                 }
             } else if (interaction.isModalSubmit()) {
                 console.log('Modal submitted:', interaction.customId, ', by:', interaction.user.username)
-                const [type, serial] = interaction.customId.split('#')
+                const [type, index] = interaction.customId.split('#')
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
-                        const data = await this._db.getPrompt(serial)
+                        const data = this._dataCache.get(Number(index))
+                        this._dataCache.delete(Number(index))
                         const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
                         const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                        await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspect_ratio, data.count, interaction, this._db, data.reference)
+                        await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction, data.seeds.shift())
                         break
                     }
                     case Constants.PROMPT_REDO: {
-                        const data = await this._db.getPrompt(serial)
+                        const data = this._dataCache.get(Number(index))
+                        this._dataCache.delete(Number(index))
                         const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
                         const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                        await runGen('Here you go again', newPrompt, newPromptNegative, data.aspect_ratio, data.count, interaction, this._db)
+                        await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction)
                     }
                 }
             }
@@ -172,14 +175,12 @@ export default class StabledBot {
             aspectRatio: string,
             count: number,
             interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
-            db: DB,
-            serialToSeed?: string,
+            seed?: string,
             variations?: boolean,
             hires?: boolean
         ) {
             try {
                 await interaction.deferReply()
-                const seed = serialToSeed ? serialToSeed.split('-').pop() : undefined
 
                 // Generate
                 console.log(`Queuing up a batch of images for [${interaction.user.username}]: +"${prompt}" -"${negativePrompt}"` + (seed ? `, seed: ${seed}` : ''))
@@ -206,18 +207,6 @@ export default class StabledBot {
                         variations,
                         hires
                     ))
-                    if (reply) {
-                        // Store in DB
-                        for (const [serial, imageData] of Object.entries(images)) await db.registerPrompt({
-                            reference: serial,
-                            prompt,
-                            negative_prompt: negativePrompt,
-                            aspect_ratio: aspectRatio,
-                            count,
-                            user: interaction.user.username,
-                            message_id: reply.id.toString()
-                        })
-                    }
                 } else {
                     await interaction.editReply({
                         content: `Sorry ${interaction.user} but I timed out :(`

@@ -1,7 +1,6 @@
-import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle, JSONEncodable} from 'discord.js'
+import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle, JSONEncodable, Message, Embed, Attachment} from 'discord.js'
 import Config, {IConfig} from './Config.js'
 import Constants from './Constants.js'
-import {IPromptRow} from './DB.js'
 import Utils from './Utils.js'
 
 export default class Tasks {
@@ -156,9 +155,15 @@ export default class Tasks {
         if (options.variations || options.hires) {
             row.addComponents(deleteButton)
         } else {
-            row.addComponents(deleteButton, redoButton, editButton, varyButton /* , upresButton */ )
+            row.addComponents(deleteButton, redoButton, editButton, varyButton /* , upresButton */)
             embeds.push({
-                description: `**Prompt**: ${options.prompt}\n**Negative prompt**: ${options.negativePrompt}\n**Aspect ratio**: ${options.aspectRatio}, **Count**: ${options.count}`
+                fields: [
+                    {name: Constants.FIELD_PROMPT, value: options.prompt, inline: false},
+                    {name: Constants.FIELD_NEGATIVE_PROMPT, value: options.negativePrompt, inline: true},
+                    {name: Constants.FIELD_USER, value: options.obj.user.username ?? 'unknown', inline: true},
+                    {name: Constants.FIELD_COUNT, value: options.count.toString(), inline: true},
+                    {name: Constants.FIELD_ASPECT_RATIO, value: options.aspectRatio, inline: true}
+                ]
             })
         }
 
@@ -182,14 +187,14 @@ export default class Tasks {
             .setValue(options.prompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
+        const promptRow = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput)
         const textInput2 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_NEGATIVE_PROMPT)
             .setLabel("The negative prompt, exclude elements.")
             .setValue(options.negativePrompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false)
-        const promptRow = new ActionRowBuilder<TextInputBuilder>()
-            .addComponents(textInput)
         const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput2)
         const modal = new ModalBuilder()
@@ -199,12 +204,12 @@ export default class Tasks {
         await options.obj.showModal(modal)
     }
 
-    static async showButtons(type: string, description: string, dataEntries: IPromptRow[], interaction: ButtonInteraction | ModalSubmitInteraction) {
+    static async showButtons(type: string, description: string, dataEntries: EmbedFieldData[], interaction: ButtonInteraction | ModalSubmitInteraction) {
         const row = new ActionRowBuilder<ButtonBuilder>()
         let buttonIndex = 0
         for (const data of dataEntries) {
             const button = new ButtonBuilder()
-                .setCustomId(type + '#' + data.reference)
+                .setCustomId(type + '#' + data.seeds.shift()) // TODO
                 .setLabel(`Image #${++buttonIndex}`)
                 .setStyle(ButtonStyle.Secondary)
             row.addComponents(button)
@@ -214,6 +219,35 @@ export default class Tasks {
             ephemeral: true,
             components: [row]
         })
+    }
+
+    static async getDataFromMessage(message: Message<boolean>): Promise<EmbedFieldData> {
+        const data = new EmbedFieldData()
+        data.messageId = message.id
+        for(const embed of message.embeds) {
+            if(embed.fields.length) {
+                const fields = embed.fields
+                if(fields) {
+                    for(const field of fields) {
+                        switch(field.name) {
+                            case Constants.FIELD_USER: data.user = field.value; break
+                            case Constants.FIELD_PROMPT: data.prompt = field.value; break
+                            case Constants.FIELD_NEGATIVE_PROMPT: data.negativePrompt = field.value; break
+                            case Constants.FIELD_COUNT: data.count = parseInt(field.value); break
+                            case Constants.FIELD_ASPECT_RATIO: data.aspectRatio = field.value; break
+                        }
+                    }
+                }
+            }
+        }
+        for(const attachment of message.attachments) {
+            const attachmentData = attachment.pop() as Attachment
+            if(attachmentData.name.endsWith('.png')) {
+                const fileName = attachmentData.name.replace('.png', '')
+                data.seeds.push(fileName.split('-').pop()) // TODO: Possible support more parts here later
+            }
+        }
+        return data
     }
 }
 
@@ -276,6 +310,17 @@ interface IStabledResponse {
 
 export interface IStringDictionary {
     [key: string]: string
+}
+
+export class EmbedFieldData {
+    public messageId: string = ''
+    public user: string = ''
+    public prompt: string = ''
+    public negativePrompt: string = ''
+    public count: number = 0
+    public aspectRatio: string = ''
+    public seeds: string[] = []
+    public subSeeds: string[] = []
 }
 
 export class GenerateImagesOptions {
