@@ -153,10 +153,10 @@ export default class Tasks {
             .setStyle(ButtonStyle.Secondary)
 
         const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
-        if (options.variations) {
+        if (options.variations || options.hires) {
             row.addComponents(deleteButton)
         } else {
-            row.addComponents(deleteButton, redoButton, editButton, varyButton, upresButton)
+            row.addComponents(deleteButton, redoButton, editButton, varyButton /* , upresButton */ )
             embeds.push({
                 description: `**Prompt**: ${options.prompt}\n**Negative prompt**: ${options.negativePrompt}\n**Aspect ratio**: ${options.aspectRatio}, **Count**: ${options.count}`
             })
@@ -300,7 +300,8 @@ export class SendImagesOptions {
         public images: IStringDictionary = {},
         public obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
         public message: string = '',
-        public variations: boolean | undefined
+        public variations: boolean | undefined,
+        public hires: boolean | undefined
     ) {
     }
 }

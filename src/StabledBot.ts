@@ -25,7 +25,7 @@ export default class StabledBot {
                 GatewayIntentBits.Guilds,
             ]
         })
-        client.once(Events.ClientReady, c => {
+        client.once(Events.ClientReady, async(c) => {
             console.log(`Ready! Logged in as ${c.user.tag}`)
         })
 
@@ -33,37 +33,28 @@ export default class StabledBot {
         if (!this._config?.token) throw new Error('No token found in config.json or config.local.json')
         else client.login(this._config.token).then()
 
-        client.on(Events.MessageCreate, async message => {
-            // console.log(message.content)
-            return // TODO: Disabled for now
-        })
+        client.on(Events.MessageCreate, async message => {})
 
         client.on(Events.InteractionCreate, async interaction => {
             if (interaction.isButton()) {
-                console.log('Button clicked:', interaction.customId, ', by:', interaction.user.username)
+                console.log('Button clicked:', interaction.customId, 'by:', interaction.user.username)
                 const [type, serial] = interaction.customId.split('#')
                 const data = await this._db.getPrompt(serial)
-                switch (type) {
+                switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
-                        await interaction.deferReply({
-                            ephemeral: true
-                        })
-                        if (data?.user && data.user == interaction.user.username) {
-                            console.log('Delete this:', interaction.message.id)
-                            if (!interaction.channel) {
-                                // It's not a channel, so it's in a DM
-                                const dmChannel = await interaction.user.createDM()
-                                const message = await dmChannel.messages.fetch(data.message_id)
-                                if (message) await message.delete()
-                            } else {
-                                // Channel message, just delete
-                                await interaction.message.delete()
-                            }
-                            await interaction.editReply({
-                                content: 'Post was deleted successfully!'
-                            })
+                        if(!interaction.channel || !interaction.guild) {
+                            // It's not a channel or channel is not in a guild, so it's in a DM, delete without checking user.
+                            const dmChannel = await interaction.user.createDM()
+                            const message = await dmChannel.messages.fetch(interaction.message.id)
+                            if (message) await message.delete()
+                            await interaction.deferUpdate()
+                        } else if (data?.user && data.user == interaction.user.username) {
+                            // Channel message, delete if it's the same user that created it.
+                            await interaction.message.delete()
+                            await interaction.deferUpdate()
                         } else {
-                            await interaction.editReply({
+                            await interaction.reply({
+                                ephemeral: true,
                                 content: 'Sorry, only the original creator can delete a post!'
                             })
                         }
@@ -100,7 +91,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_VARIANT: {
                         await runGen(
-                            'I tweaked a bit ',
+                            'Here are the variations ',
                             data?.prompt ?? '',
                             data?.negative_prompt ?? '',
                             data?.aspect_ratio ?? '1:1',
@@ -113,7 +104,6 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_UPRES: {
-                        console.log('Show upres buttons!')
                         const dataEntries = await this._db.getPrompts(data?.message_id ?? '')
                         if(dataEntries.length) {
                             await Tasks.showButtons(Constants.BUTTON_UPRESSING, 'Pick which image to upres:', dataEntries, interaction)
@@ -121,7 +111,6 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_UPRESSING: {
-                        console.log('Upressing ordered!')
                         await runGen(
                             'I did it higher res ',
                             data?.prompt ?? '',
@@ -214,7 +203,8 @@ export default class StabledBot {
                         images,
                         interaction,
                         `${messageStart} ${interaction.user}!`,
-                        variations
+                        variations,
+                        hires
                     ))
                     if (reply) {
                         // Store in DB
