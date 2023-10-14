@@ -2,11 +2,14 @@ import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, 
 import Config, {IConfig} from './Config.js'
 import Constants from './Constants.js'
 import Utils from './Utils.js'
+import axios, {AxiosInstance, AxiosResponse} from 'axios'
 
 export default class Tasks {
     private static _generatedImageCount: number = 0
+    private static _api: AxiosInstance
 
-    static async registerCommands(config: IConfig) {
+    static async registerCommands() {
+        const config = await Config.get()
         const rest = new REST({version: '10'}).setToken(config.token)
         const genCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_GEN)
@@ -33,7 +36,12 @@ export default class Tasks {
                         {name: '2', value: 2},
                         {name: '3', value: 3},
                         {name: '4', value: 4},
-                        {name: '5', value: 5}
+                        {name: '5', value: 5},
+                        {name: '6', value: 6},
+                        {name: '7', value: 7},
+                        {name: '8', value: 8},
+                        {name: '9', value: 9},
+                        {name: '10', value: 10}
                     )
             })
             .addStringOption(option => {
@@ -45,15 +53,15 @@ export default class Tasks {
                         {name: 'Landscape Golden Ratio', value: '1.618:1'},
                         {name: 'Landscape 32:9', value: '32:9'},
                         {name: 'Landscape 21:9', value: '21:9'},
-                        {name: 'Landscape 16:9', value: '16:9'},
-                        {name: 'Landscape 4:3', value: '4:3'},
-                        {name: 'Landscape 3:2', value: '3:2'},
                         {name: 'Landscape 2:1', value: '2:1'},
+                        {name: 'Landscape 16:9', value: '16:9'},
+                        {name: 'Landscape 3:2', value: '3:2'},
+                        {name: 'Landscape 4:3', value: '4:3'},
                         {name: 'Square 1:1', value: '1:1'},
-                        {name: 'Portrait 1:2', value: '1:2'},
-                        {name: 'Portrait 2:3', value: '2:3'},
                         {name: 'Portrait 3:4', value: '3:4'},
+                        {name: 'Portrait 2:3', value: '2:3'},
                         {name: 'Portrait 9:16', value: '9:16'},
+                        {name: 'Portrait 1:2', value: '1:2'},
                         {name: 'Portrait 9:21', value: '9:21'},
                         {name: 'Portrait 9:32', value: '9:32'},
                         {name: 'Portrait Golden Ratio', value: '1:1.618'}
@@ -72,6 +80,14 @@ export default class Tasks {
 
     static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
         const config = await Config.get()
+        if (!this._api) {
+            this._api = axios.create({
+                baseURL: config.apiUrl,
+                timeout: config.timeoutMins * 60 * 1000,
+                headers: {'Content-Type': 'application/json'},
+                method: 'post'
+            })
+        }
         const baseUrl = config.apiUrl
         const {width, height} = Utils.calculateWidthHeightForAspectRatio(options.aspectRatio)
 
@@ -97,18 +113,12 @@ export default class Tasks {
         }
 
         try {
-            const response = await fetch(`${baseUrl}/txt2img`, {
-                method: 'post',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            })
-            if (response.ok) {
-                const json: IStabledResponse = await response.json()
-                const info = JSON.parse(json.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
+            const response: AxiosResponse<IStabledResponse> = await axios.post(`${baseUrl}/txt2img`, body)
+            if (response.data) {
+                const data = response.data
+                const info = JSON.parse(data.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
                 const imageDic: IStringDictionary = {}
-                for (const image of json.images) {
+                for (const image of data.images) {
                     const seed = info.all_seeds.shift()
                     if (seed) {
                         const serial = Utils.getSerial(seed, ++this._generatedImageCount)
@@ -224,25 +234,35 @@ export default class Tasks {
     static async getDataFromMessage(message: Message<boolean>): Promise<EmbedFieldData> {
         const data = new EmbedFieldData()
         data.messageId = message.id
-        for(const embed of message.embeds) {
-            if(embed.fields.length) {
+        for (const embed of message.embeds) {
+            if (embed.fields.length) {
                 const fields = embed.fields
-                if(fields) {
-                    for(const field of fields) {
-                        switch(field.name) {
-                            case Constants.FIELD_USER: data.user = field.value; break
-                            case Constants.FIELD_PROMPT: data.prompt = field.value; break
-                            case Constants.FIELD_NEGATIVE_PROMPT: data.negativePrompt = field.value; break
-                            case Constants.FIELD_COUNT: data.count = parseInt(field.value); break
-                            case Constants.FIELD_ASPECT_RATIO: data.aspectRatio = field.value; break
+                if (fields) {
+                    for (const field of fields) {
+                        switch (field.name) {
+                            case Constants.FIELD_USER:
+                                data.user = field.value;
+                                break
+                            case Constants.FIELD_PROMPT:
+                                data.prompt = field.value;
+                                break
+                            case Constants.FIELD_NEGATIVE_PROMPT:
+                                data.negativePrompt = field.value;
+                                break
+                            case Constants.FIELD_COUNT:
+                                data.count = parseInt(field.value);
+                                break
+                            case Constants.FIELD_ASPECT_RATIO:
+                                data.aspectRatio = field.value;
+                                break
                         }
                     }
                 }
             }
         }
-        for(const attachment of message.attachments) {
+        for (const attachment of message.attachments) {
             const attachmentData = attachment.pop() as Attachment
-            if(attachmentData.name.endsWith('.png')) {
+            if (attachmentData.name.endsWith('.png')) {
                 const fileName = attachmentData.name.replace('.png', '')
                 data.seeds.push(fileName.split('-').pop()) // TODO: Possible support more parts here later
             }

@@ -13,7 +13,7 @@ export default class StabledBot {
         dns.setDefaultResultOrder('ipv4first');
 
         this._config = await Config.get()
-        await Tasks.registerCommands(this._config)
+        await Tasks.registerCommands()
 
         // Create Discord client
         const client: Client = new Client({

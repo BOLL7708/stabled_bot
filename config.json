@@ -3,5 +3,6 @@
   "clientSecret": "",
   "token": "",
   "serverId": "",
-  "apiUrl": ""
+  "apiUrl": "",
+  "timeoutMins": 5
 }
