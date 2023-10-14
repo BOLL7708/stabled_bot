@@ -11,6 +11,7 @@ export default class Constants {
     static OPTION_NEGATIVE_PROMPT = 'negative-prompt'
     static OPTION_COUNT = 'count'
     static OPTION_ASPECT_RATIO = 'aspect-ratio'
+    static OPTION_SPOILER = 'spoiler'
     static PROMPT_EDIT = 'prompt-edit'
     static PROMPT_REDO = 'prompt-redo'
     static INPUT_NEW_PROMPT = 'new-prompt'
@@ -20,4 +21,5 @@ export default class Constants {
     static FIELD_NEGATIVE_PROMPT = 'Negative-Prompt'
     static FIELD_COUNT = 'Count'
     static FIELD_ASPECT_RATIO = 'Aspect-Ratio'
+    static FIELD_SPOILER = 'Spoiler'
 }

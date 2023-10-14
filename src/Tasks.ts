@@ -67,6 +67,12 @@ export default class Tasks {
                         {name: 'Portrait Golden Ratio', value: '1:1.618'}
                     )
             })
+            .addBooleanOption(option => {
+                return option
+                    .setName(Constants.OPTION_SPOILER)
+                    .setDescription('Censor the generated images.')
+                    .setRequired(false)
+            })
         try {
             await rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
@@ -137,7 +143,9 @@ export default class Tasks {
 
     static async sendImagesAsReply(options: SendImagesOptions) {
         const attachments = Object.entries(options.images).map(([fileName, imageData]) => {
-            return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `${fileName}.png`})
+            return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {
+                name: `${fileName}.png`
+            }).setSpoiler(options.spoiler)
         })
         const row = new ActionRowBuilder<ButtonBuilder>()
         const deleteButton = new ButtonBuilder()
@@ -172,7 +180,8 @@ export default class Tasks {
                     {name: Constants.FIELD_NEGATIVE_PROMPT, value: options.negativePrompt, inline: true},
                     {name: Constants.FIELD_USER, value: options.obj.user.username ?? 'unknown', inline: true},
                     {name: Constants.FIELD_COUNT, value: options.count.toString(), inline: true},
-                    {name: Constants.FIELD_ASPECT_RATIO, value: options.aspectRatio, inline: true}
+                    {name: Constants.FIELD_ASPECT_RATIO, value: options.aspectRatio, inline: true},
+                    {name: Constants.FIELD_SPOILER, value: options.spoiler.toString(), inline: true}
                 ]
             })
         }
@@ -258,6 +267,9 @@ export default class Tasks {
                             case Constants.FIELD_ASPECT_RATIO:
                                 data.aspectRatio = field.value;
                                 break
+                            case Constants.FIELD_SPOILER:
+                                data.spoiler = field.value == 'true';
+                                break
                         }
                     }
                 }
@@ -342,6 +354,7 @@ export class MessageDerivedData {
     public negativePrompt: string = ''
     public count: number = 0
     public aspectRatio: string = ''
+    public spoiler: boolean = false
     public seeds: string[] = []
     public subSeeds: string[] = []
 }
@@ -365,6 +378,7 @@ export class SendImagesOptions {
         public negativePrompt: string = '',
         public aspectRatio: string = '1:1',
         public count: number = 4,
+        public spoiler: boolean = false,
         public images: IStringDictionary = {},
         public obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
         public message: string = '',

@@ -109,7 +109,8 @@ export default class StabledBot {
                                 cachedData.prompt,
                                 cachedData.negativePrompt,
                                 cachedData.aspectRatio,
-                                cachedData.count,
+                                4,
+                                cachedData.spoiler,
                                 interaction,
                                 cachedData.seeds[buttonIndex],
                                 true
@@ -135,6 +136,7 @@ export default class StabledBot {
                                 data.negativePrompt,
                                 data.aspectRatio,
                                 1,
+                                data.spoiler,
                                 interaction,
                                 data.seeds[buttonIndex],
                                 false,
@@ -146,7 +148,6 @@ export default class StabledBot {
                         break
                     }
                 }
-
             } else if (interaction.isCommand()) {
                 switch (interaction.commandName) {
                     case Constants.COMMAND_GEN: {
@@ -155,7 +156,8 @@ export default class StabledBot {
                         const aspectRatio = interaction.options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
                         const countValue = interaction.options.get(Constants.OPTION_COUNT)?.value
                         const count = countValue ? Number(countValue) : 4
-                        await runGen('Here you go', prompt, promptNegative, aspectRatio, count, interaction)
+                        const spoiler = !!interaction.options.get(Constants.OPTION_SPOILER)?.value
+                        await runGen('Here you go', prompt, promptNegative, aspectRatio, count, spoiler, interaction)
                         break
                     }
                     default: {
@@ -173,7 +175,7 @@ export default class StabledBot {
                         if(data) {
                             const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
                             const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                            await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction, data.seeds.shift())
+                            await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, data.spoiler, interaction, data.seeds.shift())
                         } else {
                             interaction.editReply({ content: 'Failed to get cached data :(' })
                         }
@@ -184,7 +186,7 @@ export default class StabledBot {
                         if(data) {
                             const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
                             const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                            await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction)
+                            await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, false, interaction)
                         } else {
                             interaction.editReply({ content: 'Failed to get cached data :(' })
                         }
@@ -199,6 +201,7 @@ export default class StabledBot {
             negativePrompt: string,
             aspectRatio: string,
             count: number,
+            spoiler: boolean,
             interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
             seed?: string,
             variations?: boolean,
@@ -226,6 +229,7 @@ export default class StabledBot {
                         negativePrompt,
                         aspectRatio,
                         count,
+                        spoiler,
                         images,
                         interaction,
                         `${messageStart} ${interaction.user}!`,
