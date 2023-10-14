@@ -1,13 +1,22 @@
 import Config, {IConfig} from './Config.js'
 import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
-import Tasks, {EmbedFieldData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
+import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
 
 export default class StabledBot {
     private _config: IConfig
-    private _dataCache = new Map<number, EmbedFieldData>()
+    private _dataCache = new Map<number, MessageDerivedData>()
     private _interactionIndex = 0
+
+    private getNextInteractionIndex(): number {
+        return ++this._interactionIndex
+    }
+    private getCachedData(index: number|string): MessageDerivedData|undefined {
+        const data = this._dataCache.get(Number(index))
+        if(data) this._dataCache.delete(Number(index))
+        return data
+    }
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
@@ -37,10 +46,8 @@ export default class StabledBot {
         client.on(Events.InteractionCreate, async interaction => {
             if (interaction.isButton()) {
                 console.log('Button clicked:', interaction.customId, 'by:', interaction.user.username)
-                const [type, serial] = interaction.customId.split('#')
-                // const data = await this._db.getPrompt(serial)
+                const [type, payload] = interaction.customId.split('#')
                 const data = await Tasks.getDataFromMessage(interaction.message)
-                console.log('Data from embeds and attachments:', data)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
                         if(!interaction.channel || !interaction.guild) {
@@ -62,68 +69,80 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_REDO: {
-                        this._dataCache.set(++this._interactionIndex, data)
+                        const nextIndex = this.getNextInteractionIndex()
+                        this._dataCache.set(nextIndex, data)
                         await Tasks.promptUser(new PromptUserOptions(
                             Constants.PROMPT_REDO,
                             "Random Seed",
                             interaction,
-                            this._interactionIndex.toString(),
+                            nextIndex.toString(),
                             data.prompt,
                             data.negativePrompt
                         ))
                         break
                     }
                     case Constants.BUTTON_EDIT: {
-                        this._dataCache.set(++this._interactionIndex, data)
+                        const nextIndex = this.getNextInteractionIndex()
+                        this._dataCache.set(nextIndex, data)
                         await Tasks.promptUser(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
                             "Reused Seed",
                             interaction,
-                            this._interactionIndex.toString(),
+                            nextIndex.toString(),
                             data.prompt,
                             data.negativePrompt
                         ))
                         break
                     }
                     case Constants.BUTTON_VARY: {
-                        const dataEntries = [] // TODO
-                        if(dataEntries.length) {
-                            await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations from:', dataEntries, interaction)
-                        }
+                        const nextIndex = this.getNextInteractionIndex()
+                        this._dataCache.set(nextIndex, data)
+                        await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations from:', nextIndex, data.seeds.length, interaction)
                         break
                     }
                     case Constants.BUTTON_VARIANT: {
-                        await runGen(
-                            'Here are the variations ',
-                            data?.prompt ?? '',
-                            data?.negativePrompt ?? '',
-                            data?.aspectRatio ?? '1:1',
-                            data?.count ?? 4,
-                            interaction,
-                            (Math.random()*100000).toString(),  // data?.reference,
-                            true
-                        )
-                        break
-                    }
-                    case Constants.BUTTON_UPRES: {
-                        const dataEntries = [] // TODO
-                        if(dataEntries.length) {
-                            await Tasks.showButtons(Constants.BUTTON_UPRESSING, 'Pick which image to upres:', dataEntries, interaction)
+                        const [cacheIndex, buttonIndex] = payload.split(':')
+                        const cachedData = this._dataCache.get(Number(cacheIndex))
+                        if(cachedData) {
+                            await runGen(
+                                'Here are the variations ',
+                                cachedData.prompt,
+                                cachedData.negativePrompt,
+                                cachedData.aspectRatio,
+                                cachedData.count,
+                                interaction,
+                                cachedData.seeds[buttonIndex],
+                                true
+                            )
+                        } else {
+                            interaction.editReply({ content: 'Failed to get cached data :(' })
                         }
                         break
                     }
+                    case Constants.BUTTON_UPRES: {
+                        const nextIndex = this.getNextInteractionIndex()
+                        this._dataCache.set(nextIndex, data)
+                        await Tasks.showButtons(Constants.BUTTON_UPRESSING, 'Pick which image to upres:', nextIndex, data.seeds.length, interaction)
+                        break
+                    }
                     case Constants.BUTTON_UPRESSING: {
-                        await runGen(
-                            'I did it higher res ',
-                            data?.prompt ?? '',
-                            data?.negativePrompt ?? '',
-                            data.aspectRatio,
-                            1,
-                            interaction,
-                            (Math.random()*100000).toString(),  // data?.reference,
-                            false,
-                            true
-                        )
+                        const [cacheIndex, buttonIndex] = payload.split(':')
+                        const cachedData = this._dataCache.get(Number(cacheIndex))
+                        if(cachedData) {
+                            await runGen(
+                                'I did it higher res ',
+                                data.prompt,
+                                data.negativePrompt,
+                                data.aspectRatio,
+                                1,
+                                interaction,
+                                data.seeds[buttonIndex],
+                                false,
+                                true
+                            )
+                        } else {
+                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                        }
                         break
                     }
                 }
@@ -150,19 +169,25 @@ export default class StabledBot {
                 const [type, index] = interaction.customId.split('#')
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
-                        const data = this._dataCache.get(Number(index))
-                        this._dataCache.delete(Number(index))
-                        const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
-                        const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                        await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction, data.seeds.shift())
+                        const data = this.getCachedData(index)
+                        if(data) {
+                            const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
+                            const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
+                            await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction, data.seeds.shift())
+                        } else {
+                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                        }
                         break
                     }
                     case Constants.PROMPT_REDO: {
-                        const data = this._dataCache.get(Number(index))
-                        this._dataCache.delete(Number(index))
-                        const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
-                        const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                        await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction)
+                        const data = this.getCachedData(index)
+                        if(data) {
+                            const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
+                            const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
+                            await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, interaction)
+                        } else {
+                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                        }
                     }
                 }
             }

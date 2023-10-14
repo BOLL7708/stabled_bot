@@ -141,23 +141,23 @@ export default class Tasks {
         })
         const row = new ActionRowBuilder<ButtonBuilder>()
         const deleteButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_DELETE + '#' + Object.keys(options.images).shift())
+            .setCustomId(Constants.BUTTON_DELETE)
             .setEmoji('❌')
             .setStyle(ButtonStyle.Secondary)
         const redoButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_REDO + '#' + Object.keys(options.images).shift())
+            .setCustomId(Constants.BUTTON_REDO)
             .setEmoji('🔀')
             .setStyle(ButtonStyle.Secondary)
         const editButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_EDIT + '#' + Object.keys(options.images).shift())
+            .setCustomId(Constants.BUTTON_EDIT)
             .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
         const varyButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_VARY + '#' + Object.keys(options.images).shift())
+            .setCustomId(Constants.BUTTON_VARY)
             .setEmoji('🎛')
             .setStyle(ButtonStyle.Secondary)
         const upresButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_UPRES + '#' + Object.keys(options.images).shift())
+            .setCustomId(Constants.BUTTON_UPRES)
             .setEmoji('🍄')
             .setStyle(ButtonStyle.Secondary)
 
@@ -208,31 +208,34 @@ export default class Tasks {
         const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput2)
         const modal = new ModalBuilder()
-            .setCustomId(`${options.customIdPrefix}#${options.reference}`)
+            .setCustomId(`${options.customIdPrefix}#${options.index}`)
             .setTitle(options.title)
             .addComponents(promptRow, promptRow2)
         await options.obj.showModal(modal)
     }
 
-    static async showButtons(type: string, description: string, dataEntries: EmbedFieldData[], interaction: ButtonInteraction | ModalSubmitInteraction) {
-        const row = new ActionRowBuilder<ButtonBuilder>()
+    static async showButtons(type: string, description: string, cacheIndex: number, buttonCount: number, interaction: ButtonInteraction | ModalSubmitInteraction) {
+        const row1 = new ActionRowBuilder<ButtonBuilder>()
+        const row2 = new ActionRowBuilder<ButtonBuilder>()
         let buttonIndex = 0
-        for (const data of dataEntries) {
+        for (let i=0; i<buttonCount; i++) {
             const button = new ButtonBuilder()
-                .setCustomId(type + '#' + data.seeds.shift()) // TODO
-                .setLabel(`Image #${++buttonIndex}`)
+                .setCustomId(`${type}#${cacheIndex}:${buttonIndex}`)
+                .setLabel(`Image #${buttonIndex+1}`)
                 .setStyle(ButtonStyle.Secondary)
-            row.addComponents(button)
+            buttonIndex++
+            if (buttonIndex <= 5) row1.addComponents(button)
+            else row2.addComponents(button)
         }
         await interaction.reply({
             content: description,
             ephemeral: true,
-            components: [row]
+            components: buttonIndex <= 5 ? [row1] : [row1, row2]
         })
     }
 
-    static async getDataFromMessage(message: Message<boolean>): Promise<EmbedFieldData> {
-        const data = new EmbedFieldData()
+    static async getDataFromMessage(message: Message<boolean>): Promise<MessageDerivedData> {
+        const data = new MessageDerivedData()
         data.messageId = message.id
         for (const embed of message.embeds) {
             if (embed.fields.length) {
@@ -332,7 +335,7 @@ export interface IStringDictionary {
     [key: string]: string
 }
 
-export class EmbedFieldData {
+export class MessageDerivedData {
     public messageId: string = ''
     public user: string = ''
     public prompt: string = ''
@@ -376,7 +379,7 @@ export class PromptUserOptions {
         public customIdPrefix: string = '',
         public title: string = '',
         public obj: ButtonInteraction | CommandInteraction | undefined,
-        public reference: string = '',
+        public index: string = '',
         public prompt: string = 'random dirt',
         public negativePrompt: string = ''
     ) {
