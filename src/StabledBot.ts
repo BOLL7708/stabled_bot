@@ -3,6 +3,7 @@ import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, Co
 import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
+import {CronJob} from 'cron'
 
 export default class StabledBot {
     private _config: IConfig
@@ -21,6 +22,16 @@ export default class StabledBot {
     async start() {
         dns.setDefaultResultOrder('ipv4first');
 
+        // Update bot status
+        const loadProgressJob = new CronJob(
+            '*/5 * * * * *',
+            async () => {
+                await Tasks.updateProgressStatus(client)
+            },
+            null,
+            false
+        )
+
         this._config = await Config.get()
         await Tasks.registerCommands()
 
@@ -35,6 +46,12 @@ export default class StabledBot {
         })
         client.once(Events.ClientReady, async(c) => {
             console.log(`Ready! Logged in as ${c.user.tag}`)
+            loadProgressJob.start()
+            try {
+                await c.user.setUsername('Stabled')
+            } catch (e) {
+                console.error('Failed to update username:', e.message)
+            }
         })
 
         // Log in to Discord with your client's token

@@ -1,5 +1,5 @@
-import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle, JSONEncodable, Message, Embed, Attachment, TextChannel, DMChannel} from 'discord.js'
-import Config, {IConfig} from './Config.js'
+import {ActionRowBuilder, ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, JSONEncodable, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle} from 'discord.js'
+import Config from './Config.js'
 import Constants from './Constants.js'
 import Utils from './Utils.js'
 import axios, {AxiosInstance, AxiosResponse} from 'axios'
@@ -7,10 +7,19 @@ import axios, {AxiosInstance, AxiosResponse} from 'axios'
 export default class Tasks {
     private static _generatedImageCount: number = 0
     private static _api: AxiosInstance
+    private static _rest: REST
+    private static _queueCount = 0
+
+    static async ensureREST() {
+        const config = await Config.get()
+        if (!this._rest) {
+            this._rest = new REST({version: '10'}).setToken(config.token)
+        }
+    }
 
     static async registerCommands() {
         const config = await Config.get()
-        const rest = new REST({version: '10'}).setToken(config.token)
+        await this.ensureREST()
         const genCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_GEN)
             .setDescription('Generate an image from a prompt.')
@@ -74,7 +83,7 @@ export default class Tasks {
                     .setRequired(false)
             })
         try {
-            await rest.put(Routes.applicationCommands(config.clientId), {
+            await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
                     genCommand.toJSON()
                 ]
@@ -88,7 +97,7 @@ export default class Tasks {
         const config = await Config.get()
         if (!this._api) {
             this._api = axios.create({
-                baseURL: config.apiUrl,
+                baseURL: config.serverAddress+'/sdapi/v1',
                 timeout: config.timeoutMins * 60 * 1000,
                 headers: {'Content-Type': 'application/json'},
                 method: 'post'
@@ -122,7 +131,9 @@ export default class Tasks {
         }
 
         try {
+            this._queueCount++
             const response: AxiosResponse<IStabledResponse> = await this._api.post(`txt2img`, body)
+            this._queueCount--
             if (response.data) {
                 const data = response.data
                 const info = JSON.parse(data.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
@@ -301,7 +312,6 @@ export default class Tasks {
         return data
     }
 
-
     static async getChannelFromInteraction(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<TextChannel | DMChannel | undefined> {
         let channel: undefined | DMChannel | TextChannel
         if (!interaction.channel || !interaction.guild) {
@@ -340,19 +350,50 @@ export default class Tasks {
         if (base64.length == 0) throw('Could not download image data.')
         const fileName = attachment.name.replace('.png', '')
 
+        const upscaleFactor = 4
         const body = {
-            upscaling_resize: 2,
+            upscaling_resize: upscaleFactor,
             upscaler_1: 'Lanczos',
             upscaler_2: 'None',
             extras_upscaler_2_visibility: 0,
             upscale_first: false,
             image: base64
         }
+        this._queueCount++
         const upscaleResponse = await this._api.post(`extra-single-image`, body)
+        this._queueCount--
         if (upscaleResponse.data) {
-            return {[`${fileName}_2x`]: upscaleResponse.data.image}
+            return {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
         }
         return {}
+    }
+
+    static _currentStatus: string = ''
+    static _currentActivity: string = ''
+    static _currentTick: boolean = false
+    static async updateProgressStatus(client: Client|undefined) {
+        await this.ensureAPI()
+        const progressResponse: AxiosResponse<IProgressResponse> = await this._api.get('progress')
+        const progress = progressResponse.data
+        if(!progress) return console.error('Could not get progress.')
+
+        this._currentTick = !this._currentTick
+        const idle = progress.state.job_count <= 0
+        const newStatus = idle ? 'online' : 'dnd'
+        const newActivity = idle
+            ? '/gen 💤'
+            : `/gen ${this._currentTick?'⌛':'⏳'}:${Math.round(100*progress.progress)}% 📋:${this._queueCount}`
+        if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
+            this._currentStatus = newStatus
+            this._currentActivity = newActivity
+            await client.user.setPresence({
+                status: newStatus,
+                activities: [{
+                    name: newActivity,
+                    type: ActivityType.Custom
+                }]
+            })
+        }
     }
 }
 
@@ -411,6 +452,23 @@ interface IStabledResponse {
         alwayson_scripts: any
     },
     info: string
+}
+
+interface IProgressResponse {
+    progress: number
+    eta_relative: number
+    state: {
+        skipped: boolean
+        interrupted: boolean
+        job: string
+        job_count: number
+        job_timestamp: string
+        job_no: number
+        sampling_step: number
+        sampling_steps: number
+    },
+    current_image: string,
+    textinfo: any
 }
 
 export interface IStringDictionary {

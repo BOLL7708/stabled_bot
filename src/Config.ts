@@ -27,6 +27,6 @@ export interface IConfig {
     clientSecret: string
     token: string
     serverId: string
-    apiUrl: string
+    serverAddress: string
     timeoutMins: number
 }
