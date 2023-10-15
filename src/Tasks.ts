@@ -1,4 +1,4 @@
-import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle, JSONEncodable, Message, Embed, Attachment} from 'discord.js'
+import {REST, Routes, APIEmbed, ActionRowBuilder, ApplicationCommandOptionType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, ModalBuilder, ModalSubmitInteraction, SlashCommandBuilder, TextInputBuilder, TextInputStyle, JSONEncodable, Message, Embed, Attachment, TextChannel, DMChannel} from 'discord.js'
 import Config, {IConfig} from './Config.js'
 import Constants from './Constants.js'
 import Utils from './Utils.js'
@@ -84,7 +84,7 @@ export default class Tasks {
         }
     }
 
-    static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
+    static async ensureAPI() {
         const config = await Config.get()
         if (!this._api) {
             this._api = axios.create({
@@ -94,7 +94,10 @@ export default class Tasks {
                 method: 'post'
             })
         }
-        const baseUrl = config.apiUrl
+    }
+
+    static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
+        await this.ensureAPI()
         const {width, height} = Utils.calculateWidthHeightForAspectRatio(options.aspectRatio)
 
         const body = {
@@ -119,7 +122,7 @@ export default class Tasks {
         }
 
         try {
-            const response: AxiosResponse<IStabledResponse> = await axios.post(`${baseUrl}/txt2img`, body)
+            const response: AxiosResponse<IStabledResponse> = await this._api.post(`txt2img`, body)
             if (response.data) {
                 const data = response.data
                 const info = JSON.parse(data.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
@@ -164,16 +167,28 @@ export default class Tasks {
             .setCustomId(Constants.BUTTON_VARY)
             .setEmoji('🎛')
             .setStyle(ButtonStyle.Secondary)
-        const upresButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_UPRES)
+        const upscaleButton = new ButtonBuilder()
+            .setCustomId(Constants.BUTTON_UPSCALE)
             .setEmoji('🍄')
             .setStyle(ButtonStyle.Secondary)
 
-        const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
-        if (options.variations || options.hires) {
+        // Components
+        if (options.hires) {
             row.addComponents(deleteButton)
+        } else if (options.variations) {
+            row.addComponents(deleteButton, upscaleButton)
         } else {
-            row.addComponents(deleteButton, redoButton, editButton, varyButton /* , upresButton */)
+            row.addComponents(deleteButton, redoButton, editButton, varyButton, upscaleButton)
+
+        }
+
+        // Embeds
+        const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
+        if (options.hires || options.variations) {
+            embeds.push({
+                fields: [{name: Constants.FIELD_USER, value: options.obj.user.username ?? 'unknown', inline: true}]
+            })
+        } else {
             embeds.push({
                 fields: [
                     {name: Constants.FIELD_PROMPT, value: options.prompt, inline: false},
@@ -186,6 +201,7 @@ export default class Tasks {
             })
         }
 
+        // Reply
         try {
             return await options.obj.editReply({
                 content: options.message,
@@ -227,10 +243,10 @@ export default class Tasks {
         const row1 = new ActionRowBuilder<ButtonBuilder>()
         const row2 = new ActionRowBuilder<ButtonBuilder>()
         let buttonIndex = 0
-        for (let i=0; i<buttonCount; i++) {
+        for (let i = 0; i < buttonCount; i++) {
             const button = new ButtonBuilder()
                 .setCustomId(`${type}#${cacheIndex}:${buttonIndex}`)
-                .setLabel(`Image #${buttonIndex+1}`)
+                .setLabel(`Image #${buttonIndex + 1}`)
                 .setStyle(ButtonStyle.Secondary)
             buttonIndex++
             if (buttonIndex <= 5) row1.addComponents(button)
@@ -283,6 +299,60 @@ export default class Tasks {
             }
         }
         return data
+    }
+
+
+    static async getChannelFromInteraction(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<TextChannel | DMChannel | undefined> {
+        let channel: undefined | DMChannel | TextChannel
+        if (!interaction.channel || !interaction.guild) {
+            channel = await interaction.user.createDM()
+        } else {
+            channel = interaction.channel as TextChannel
+        }
+        return channel
+    }
+
+    static async getMessageForInteraction(interaction: ButtonInteraction | ModalSubmitInteraction): Promise<IMessageForInteraction | undefined> {
+        const channel = await this.getChannelFromInteraction(interaction)
+        const message = await channel.messages.fetch(interaction.message.id)
+        if (!message) return undefined
+        else return {
+            message,
+            channel: channel
+        }
+    }
+
+    static async getAttachmentAndUpscale(interaction: ButtonInteraction, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
+        await this.ensureAPI()
+
+        const channel = await this.getChannelFromInteraction(interaction)
+        if (!channel) throw('Could not get channel.')
+
+        const message = await channel.messages.fetch(messageId)
+        if (!message) throw('Could not get message.')
+
+        const attachments = Array.from(message.attachments.values())
+        const attachment = attachments.at(Number(buttonIndex))
+        if (!attachment) throw('Could not get attachment.')
+
+        const attachmentResponse = await axios.get(attachment.url, {responseType: 'arraybuffer'})
+        const base64 = Buffer.from(attachmentResponse.data, 'binary').toString('base64')
+        if (base64.length == 0) throw('Could not download image data.')
+        const fileName = attachment.name.replace('.png', '')
+
+        const body = {
+            upscaling_resize: 2,
+            upscaler_1: 'Lanczos',
+            upscaler_2: 'None',
+            extras_upscaler_2_visibility: 0,
+            upscale_first: false,
+            image: base64
+        }
+        const upscaleResponse = await this._api.post(`extra-single-image`, body)
+        if (upscaleResponse.data) {
+            return {[`${fileName}_2x`]: upscaleResponse.data.image}
+        }
+        return {}
     }
 }
 
@@ -398,4 +468,11 @@ export class PromptUserOptions {
         public negativePrompt: string = ''
     ) {
     }
+}
+
+export type TChannelType = TextChannel | DMChannel
+
+export interface IMessageForInteraction {
+    message: Message
+    channel: TChannelType
 }

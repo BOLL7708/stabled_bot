@@ -1,5 +1,5 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
 import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
@@ -50,21 +50,20 @@ export default class StabledBot {
                 const data = await Tasks.getDataFromMessage(interaction.message)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
-                        if(!interaction.channel || !interaction.guild) {
-                            // It's not a channel or channel is not in a guild, so it's in a DM, delete without checking user.
-                            const dmChannel = await interaction.user.createDM()
-                            const message = await dmChannel.messages.fetch(interaction.message.id)
-                            if (message) await message.delete()
-                            await interaction.deferUpdate()
-                        } else if (data?.user && data.user == interaction.user.username) {
-                            // Channel message, delete if it's the same user that created it.
-                            await interaction.message.delete()
-                            await interaction.deferUpdate()
-                        } else {
-                            await interaction.reply({
-                                ephemeral: true,
-                                content: 'Sorry, only the original creator can delete a post!'
-                            })
+                        const messageResult = await Tasks.getMessageForInteraction(interaction)
+                        if(messageResult) {
+                            if(
+                                messageResult.channel instanceof DMChannel // DMs are always deletable
+                                || data.user == interaction.user.username // Limit to creator in public channels
+                            ) {
+                                await messageResult.message.delete()
+                                await interaction.deferUpdate()
+                            } else {
+                                await interaction.reply({
+                                    ephemeral: true,
+                                    content: 'Sorry, only the original creator can delete a post!'
+                                })
+                            }
                         }
                         break
                     }
@@ -97,7 +96,7 @@ export default class StabledBot {
                     case Constants.BUTTON_VARY: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations from:', nextIndex, data.seeds.length, interaction)
+                        await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations for:', nextIndex, data.seeds.length, interaction)
                         break
                     }
                     case Constants.BUTTON_VARIANT: {
@@ -116,34 +115,44 @@ export default class StabledBot {
                                 true
                             )
                         } else {
-                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                            await interaction.reply({
+                                ephemeral: true,
+                                content: 'The menu has expired, dismiss it and relaunch.'
+                            })
                         }
                         break
                     }
-                    case Constants.BUTTON_UPRES: {
+                    case Constants.BUTTON_UPSCALE: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.showButtons(Constants.BUTTON_UPRESSING, 'Pick which image to upres:', nextIndex, data.seeds.length, interaction)
+                        await Tasks.showButtons(Constants.BUTTON_UPSCALING, 'Pick which image to up-scale:', nextIndex, data.seeds.length, interaction)
                         break
                     }
-                    case Constants.BUTTON_UPRESSING: {
+                    case Constants.BUTTON_UPSCALING: {
                         const [cacheIndex, buttonIndex] = payload.split(':')
                         const cachedData = this._dataCache.get(Number(cacheIndex))
                         if(cachedData) {
-                            await runGen(
-                                'I did it higher res ',
-                                data.prompt,
-                                data.negativePrompt,
-                                data.aspectRatio,
-                                1,
-                                data.spoiler,
-                                interaction,
-                                data.seeds[buttonIndex],
-                                false,
-                                true
-                            )
+                            await interaction.deferReply()
+                            try {
+                                const images = await Tasks.getAttachmentAndUpscale(interaction, cachedData.messageId, buttonIndex)
+                                if(images) {
+                                    const options = new SendImagesOptions(
+                                        '', '', '', 1,
+                                        cachedData.spoiler, images, interaction,
+                                        `Here is the up-scaled image ${interaction.user}!`,
+                                        false, true
+                                    )
+                                    await Tasks.sendImagesAsReply(options)
+                                }
+                            } catch(e) {
+                                interaction.deleteReply()
+                                console.error(e)
+                            }
                         } else {
-                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                            await interaction.reply({
+                                ephemeral: true,
+                                content: 'The menu has expired, dismiss it and relaunch.'
+                            })
                         }
                         break
                     }
@@ -211,7 +220,7 @@ export default class StabledBot {
                 await interaction.deferReply()
 
                 // Generate
-                console.log(`Queuing up a batch of images for [${interaction.user.username}]: +"${prompt}" -"${negativePrompt}"` + (seed ? `, seed: ${seed}` : ''))
+                console.log(`Queuing up a ${count} image(s) for: ${interaction.user.username}`)
                 const images = await Tasks.generateImages(new GenerateImagesOptions(
                     prompt,
                     negativePrompt,
@@ -223,7 +232,7 @@ export default class StabledBot {
                 ))
                 if (Object.keys(images).length) {
                     // Send to Discord
-                    console.log(`Generated ${Object.keys(images).length} image(s) for ${interaction.user.username}`)
+                    console.log(`Generated ${Object.keys(images).length} image(s) for: ${interaction.user.username}`)
                     const reply = await Tasks.sendImagesAsReply(new SendImagesOptions(
                         prompt,
                         negativePrompt,
