@@ -9,6 +9,7 @@ export default class Tasks {
     private static _api: AxiosInstance
     private static _rest: REST
     private static _queueCount = 0
+    private static _queue: Map<number, ButtonInteraction | CommandInteraction | ModalSubmitInteraction> = new Map()
 
     static async ensureREST() {
         const config = await Config.get()
@@ -131,9 +132,10 @@ export default class Tasks {
         }
 
         try {
-            this._queueCount++
+            const queueIndex = this.registerQueueItem(options.interaction)
             const response: AxiosResponse<IStabledResponse> = await this._api.post(`txt2img`, body)
-            this._queueCount--
+            this.unregisterQueueItem(queueIndex)
+
             if (response.data) {
                 const data = response.data
                 const info = JSON.parse(data.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
@@ -153,6 +155,47 @@ export default class Tasks {
             console.error(e)
             return {}
         }
+    }
+
+    static async getAttachmentAndUpscale(interaction: ButtonInteraction, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
+        await this.ensureAPI()
+
+        const channel = await this.getChannelFromInteraction(interaction)
+        if (!channel) throw('Could not get channel.')
+
+        const message = await channel.messages.fetch(messageId)
+        if (!message) throw('Could not get message.')
+
+        const attachments = Array.from(message.attachments.values())
+        const attachment = attachments.at(Number(buttonIndex))
+        if (!attachment) throw('Could not get attachment.')
+
+        const attachmentResponse = await axios.get(attachment.url, {responseType: 'arraybuffer'})
+        const base64 = Buffer.from(attachmentResponse.data, 'binary').toString('base64')
+        if (base64.length == 0) throw('Could not download image data.')
+        const fileName = attachment.name.replace('.png', '')
+
+        const upscaleFactor = 4
+        const body = {
+            upscaling_resize: upscaleFactor,
+            upscaler_1: 'Lanczos',
+            upscaler_2: 'None',
+            extras_upscaler_2_visibility: 0,
+            upscale_first: false,
+            image: base64
+        }
+
+        const queueIndex = this.registerQueueItem(interaction)
+        try {
+            const upscaleResponse = await this._api.post(`extra-single-image`, body)
+            if (upscaleResponse.data) {
+                return {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
+            }
+        } catch (e) {
+            console.error('Up-scaling failed', e.message)
+        }
+        this.unregisterQueueItem(queueIndex)
+        return {}
     }
 
     static async sendImagesAsReply(options: SendImagesOptions) {
@@ -197,14 +240,14 @@ export default class Tasks {
         const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
         if (options.hires || options.variations) {
             embeds.push({
-                fields: [{name: Constants.FIELD_USER, value: options.obj.user.username ?? 'unknown', inline: true}]
+                fields: [{name: Constants.FIELD_USER, value: options.interaction.user.username ?? 'unknown', inline: true}]
             })
         } else {
             embeds.push({
                 fields: [
                     {name: Constants.FIELD_PROMPT, value: options.prompt, inline: false},
                     {name: Constants.FIELD_NEGATIVE_PROMPT, value: options.negativePrompt, inline: true},
-                    {name: Constants.FIELD_USER, value: options.obj.user.username ?? 'unknown', inline: true},
+                    {name: Constants.FIELD_USER, value: options.interaction.user.username ?? 'unknown', inline: true},
                     {name: Constants.FIELD_COUNT, value: options.count.toString(), inline: true},
                     {name: Constants.FIELD_ASPECT_RATIO, value: options.aspectRatio, inline: true},
                     {name: Constants.FIELD_SPOILER, value: options.spoiler.toString(), inline: true}
@@ -214,7 +257,7 @@ export default class Tasks {
 
         // Reply
         try {
-            return await options.obj.editReply({
+            return await options.interaction.editReply({
                 content: options.message,
                 files: attachments,
                 components: [row],
@@ -247,7 +290,7 @@ export default class Tasks {
             .setCustomId(`${options.customIdPrefix}#${options.index}`)
             .setTitle(options.title)
             .addComponents(promptRow, promptRow2)
-        await options.obj.showModal(modal)
+        await options.interaction.showModal(modal)
     }
 
     static async showButtons(type: string, description: string, cacheIndex: number, buttonCount: number, interaction: ButtonInteraction | ModalSubmitInteraction) {
@@ -340,11 +383,15 @@ export default class Tasks {
                 components.push(row1, row2, row3, row4)
                 break
         }
-        await interaction.reply({
-            content: description,
-            ephemeral: true,
-            components
-        })
+        try {
+            await interaction.reply({
+                content: description,
+                ephemeral: true,
+                components
+            })
+        } catch (e) {
+            console.error('Unable to show submenu:', e.message)
+        }
     }
 
     static async getDataFromMessage(message: Message<boolean>): Promise<MessageDerivedData> {
@@ -409,42 +456,6 @@ export default class Tasks {
         }
     }
 
-    static async getAttachmentAndUpscale(interaction: ButtonInteraction, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
-        await this.ensureAPI()
-
-        const channel = await this.getChannelFromInteraction(interaction)
-        if (!channel) throw('Could not get channel.')
-
-        const message = await channel.messages.fetch(messageId)
-        if (!message) throw('Could not get message.')
-
-        const attachments = Array.from(message.attachments.values())
-        const attachment = attachments.at(Number(buttonIndex))
-        if (!attachment) throw('Could not get attachment.')
-
-        const attachmentResponse = await axios.get(attachment.url, {responseType: 'arraybuffer'})
-        const base64 = Buffer.from(attachmentResponse.data, 'binary').toString('base64')
-        if (base64.length == 0) throw('Could not download image data.')
-        const fileName = attachment.name.replace('.png', '')
-
-        const upscaleFactor = 4
-        const body = {
-            upscaling_resize: upscaleFactor,
-            upscaler_1: 'Lanczos',
-            upscaler_2: 'None',
-            extras_upscaler_2_visibility: 0,
-            upscale_first: false,
-            image: base64
-        }
-        this._queueCount++
-        const upscaleResponse = await this._api.post(`extra-single-image`, body)
-        this._queueCount--
-        if (upscaleResponse.data) {
-            return {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
-        }
-        return {}
-    }
-
     static _currentStatus: string = ''
     static _currentActivity: string = ''
     static _currentTick: boolean = false
@@ -472,6 +483,24 @@ export default class Tasks {
                 }]
             })
         }
+        // get interaction with lowest index and
+        const interactionArr = this._queue.entries().next().value
+        if(interactionArr && interactionArr.length == 2) {
+            interactionArr[1].editReply({
+                content: Utils.progressBar(progress.progress)
+            })
+        }
+    }
+
+    private static registerQueueItem(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
+        const index = ++this._queueCount
+        this._queue.set(this._queueCount, interaction)
+        return index
+    }
+
+    private static unregisterQueueItem(index: number) {
+        this._queue.delete(index)
+        this._queueCount--
     }
 }
 
@@ -567,6 +596,7 @@ export class MessageDerivedData {
 
 export class GenerateImagesOptions {
     constructor(
+        public interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
         public prompt: string = 'random garbage',
         public negativePrompt: string = '',
         public aspectRatio: string = '1:1',
@@ -586,7 +616,7 @@ export class SendImagesOptions {
         public count: number = 4,
         public spoiler: boolean = false,
         public images: IStringDictionary = {},
-        public obj: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
+        public interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
         public message: string = '',
         public variations: boolean | undefined,
         public hires: boolean | undefined
@@ -598,7 +628,7 @@ export class PromptUserOptions {
     constructor(
         public customIdPrefix: string = '',
         public title: string = '',
-        public obj: ButtonInteraction | CommandInteraction | undefined,
+        public interaction: ButtonInteraction | CommandInteraction | undefined,
         public index: string = '',
         public prompt: string = 'random dirt',
         public negativePrompt: string = ''

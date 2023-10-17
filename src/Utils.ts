@@ -10,4 +10,11 @@ export default class Utils {
     static getSerial(seed: number|string, count: number|string): string {
         return `${Date.now()}${count}-${seed}`
     }
+
+    static progressBar(value: number): string {
+        // Generate a progress bar with 20 characters
+        const progress = Math.round(value * 25)
+        const bar = '|'.repeat(progress) + '-'.repeat(25 - progress)
+        return `Generating... \`[${bar}] ${Math.round(value * 100)}%\``
+    }
 }

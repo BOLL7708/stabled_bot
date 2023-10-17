@@ -152,7 +152,7 @@ export default class StabledBot {
                             await interaction.deferReply()
                             try {
                                 const images = await Tasks.getAttachmentAndUpscale(interaction, cachedData.messageId, buttonIndex)
-                                if(images) {
+                                if(Object.keys(images).length) {
                                     const options = new SendImagesOptions(
                                         '', '', '', 1,
                                         cachedData.spoiler, images, interaction,
@@ -160,6 +160,8 @@ export default class StabledBot {
                                         false, true
                                     )
                                     await Tasks.sendImagesAsReply(options)
+                                } else {
+                                    await StabledBot.nodeError(interaction)
                                 }
                             } catch(e) {
                                 interaction.deleteReply()
@@ -239,6 +241,7 @@ export default class StabledBot {
                 // Generate
                 console.log(`Queuing up a ${count} image(s) for: ${interaction.user.username}`)
                 const images = await Tasks.generateImages(new GenerateImagesOptions(
+                    interaction,
                     prompt,
                     negativePrompt,
                     aspectRatio,
@@ -263,13 +266,17 @@ export default class StabledBot {
                         hires
                     ))
                 } else {
-                    await interaction.editReply({
-                        content: `Sorry ${interaction.user} but I timed out :(`
-                    })
+                    await StabledBot.nodeError(interaction)
                 }
             } catch (e) {
                 console.error(e)
             }
         }
+    }
+
+    private static async nodeError(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
+        await interaction.editReply({
+            content: `Sorry ${interaction.user} but the node appears to be offline :(`
+        })
     }
 }
