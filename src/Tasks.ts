@@ -97,7 +97,7 @@ export default class Tasks {
         const config = await Config.get()
         if (!this._api) {
             this._api = axios.create({
-                baseURL: config.serverAddress+'/sdapi/v1',
+                baseURL: config.serverAddress + '/sdapi/v1',
                 timeout: config.timeoutMins * 60 * 1000,
                 headers: {'Content-Type': 'application/json'},
                 method: 'post'
@@ -253,20 +253,97 @@ export default class Tasks {
     static async showButtons(type: string, description: string, cacheIndex: number, buttonCount: number, interaction: ButtonInteraction | ModalSubmitInteraction) {
         const row1 = new ActionRowBuilder<ButtonBuilder>()
         const row2 = new ActionRowBuilder<ButtonBuilder>()
-        let buttonIndex = 0
-        for (let i = 0; i < buttonCount; i++) {
-            const button = new ButtonBuilder()
-                .setCustomId(`${type}#${cacheIndex}:${buttonIndex}`)
-                .setLabel(`Image #${buttonIndex + 1}`)
+        const row3 = new ActionRowBuilder<ButtonBuilder>()
+        const row4 = new ActionRowBuilder<ButtonBuilder>()
+
+        function buildDeadButton(index: number) {
+            return new ButtonBuilder()
+                .setCustomId(`${Constants.BUTTON_DEAD}#${index}`)
+                .setLabel('‎ ') // Invisible
                 .setStyle(ButtonStyle.Secondary)
-            buttonIndex++
-            if (buttonIndex <= 5) row1.addComponents(button)
-            else row2.addComponents(button)
+                .setDisabled(true)
+        }
+
+        function buildButton(index: number, label: string) {
+            return new ButtonBuilder()
+                .setCustomId(`${type}#${cacheIndex}:${index}`)
+                .setLabel(label)
+                .setStyle(ButtonStyle.Secondary)
+        }
+
+        const button1 = buildButton(0, '1')
+        const button2 = buildButton(1, '2')
+        const button3 = buildButton(2, '3')
+        const button4 = buildButton(3, '4')
+        const button5 = buildButton(4, '5')
+        const button6 = buildButton(5, '6')
+        const button7 = buildButton(6, '7')
+        const button8 = buildButton(7, '8')
+        const button9 = buildButton(8, '9')
+        const button10 = buildButton(9, '10')
+        const deadButton1 = buildDeadButton(1)
+        const deadButton2 = buildDeadButton(2)
+
+        const components: ActionRowBuilder<ButtonBuilder>[] = []
+        switch (buttonCount) {
+            case 1:
+                row1.addComponents(button1)
+                components.push(row1)
+                break
+            case 2:
+                row1.addComponents(button1, button2)
+                components.push(row1)
+                break
+            case 3:
+                row1.addComponents(button1, button2)
+                row2.addComponents(deadButton1, button3)
+                components.push(row1, row2)
+                break
+            case 4:
+                row1.addComponents(button1, button2)
+                row2.addComponents(button3, button4)
+                components.push(row1, row2)
+                break
+            case 5:
+                row1.addComponents(button1, deadButton1, button2)
+                row2.addComponents(button3, button4, button5)
+                components.push(row1, row2)
+                break
+            case 6:
+                row1.addComponents(button1, button2, button3)
+                row2.addComponents(button4, button5, button6)
+                components.push(row1, row2)
+                break
+            case 7:
+                row1.addComponents(deadButton1, button1, deadButton2)
+                row2.addComponents(button2, button3, button4)
+                row3.addComponents(button5, button6, button7)
+                components.push(row1, row2, row3)
+                break
+            case 8:
+                row1.addComponents(button1, deadButton1, button2)
+                row2.addComponents(button3, button4, button5)
+                row3.addComponents(button6, button7, button8)
+                components.push(row1, row2, row3)
+                break
+            case 9:
+                row1.addComponents(button1, button2, button3)
+                row2.addComponents(button4, button5, button6)
+                row3.addComponents(button7, button8, button9)
+                components.push(row1, row2, row3)
+                break
+            case 10:
+                row1.addComponents(deadButton1, button1, deadButton2)
+                row2.addComponents(button2, button3, button4)
+                row3.addComponents(button5, button6, button7)
+                row4.addComponents(button8, button9, button10)
+                components.push(row1, row2, row3, row4)
+                break
         }
         await interaction.reply({
             content: description,
             ephemeral: true,
-            components: buttonIndex <= 5 ? [row1] : [row1, row2]
+            components
         })
     }
 
@@ -371,18 +448,19 @@ export default class Tasks {
     static _currentStatus: string = ''
     static _currentActivity: string = ''
     static _currentTick: boolean = false
-    static async updateProgressStatus(client: Client|undefined) {
+
+    static async updateProgressStatus(client: Client | undefined) {
         await this.ensureAPI()
         const progressResponse: AxiosResponse<IProgressResponse> = await this._api.get('progress')
         const progress = progressResponse.data
-        if(!progress) return console.error('Could not get progress.')
+        if (!progress) return console.error('Could not get progress.')
 
         this._currentTick = !this._currentTick
         const idle = progress.state.job_count <= 0
         const newStatus = idle ? 'online' : 'dnd'
         const newActivity = idle
             ? '/gen 💤'
-            : `/gen ${this._currentTick?'⌛':'⏳'}:${Math.round(100*progress.progress)}% 📋:${this._queueCount}`
+            : `/gen ${this._currentTick ? '⌛' : '⏳'}:${Math.round(100 * progress.progress)}% 📋:${this._queueCount}`
         if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
             this._currentStatus = newStatus
             this._currentActivity = newActivity
