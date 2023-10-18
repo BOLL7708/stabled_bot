@@ -9,6 +9,7 @@ export default class Tasks {
     private static _api: AxiosInstance
     private static _rest: REST
     private static _queueCount = 0
+    private static _queueIndex = 0
     private static _queue: Map<number, ButtonInteraction | CommandInteraction | ModalSubmitInteraction> = new Map()
 
     static async ensureREST() {
@@ -419,7 +420,7 @@ export default class Tasks {
                                 data.aspectRatio = field.value;
                                 break
                             case Constants.FIELD_SPOILER:
-                                data.spoiler = field.value == 'true';
+                                data.spoiler = field.value.toLowerCase() == 'true';
                                 break
                         }
                     }
@@ -459,6 +460,7 @@ export default class Tasks {
     static _currentStatus: string = ''
     static _currentActivity: string = ''
     static _currentTick: boolean = false
+    static _updateQueues: boolean = false
 
     static async updateProgressStatus(client: Client | undefined) {
         await this.ensureAPI()
@@ -483,24 +485,47 @@ export default class Tasks {
                 }]
             })
         }
-        // get interaction with lowest index and
-        const interactionArr = this._queue.entries().next().value
-        if(interactionArr && interactionArr.length == 2) {
-            interactionArr[1].editReply({
+        const queueEntries = this._queue.entries()
+        let currentItem = queueEntries.next()
+        const progressInteraction = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
+        try {
+            progressInteraction?.editReply({
                 content: Utils.progressBar(progress.progress)
             })
+        } catch (e) {
+            console.error('Progress update failed.', e.message)
+        }
+        let placeInQueue = 0
+        if(this._updateQueues && progressInteraction) {
+            this._updateQueues = false
+            while (currentItem?.value && !currentItem?.value?.done) {
+                currentItem = queueEntries.next()
+                if(currentItem.value) {
+                    const interaction = currentItem.value.length == 2 ? currentItem.value[1] : undefined
+                    try {
+                        interaction?.editReply({
+                            content: `Queued... \`${++placeInQueue}/${this._queueCount-1}\``
+                        })
+                    } catch (e) {
+                        console.error('Queue update failed.', e.message)
+                    }
+                }
+            }
         }
     }
 
     private static registerQueueItem(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
-        const index = ++this._queueCount
-        this._queue.set(this._queueCount, interaction)
+        const index = ++this._queueIndex
+        this._queueCount++
+        this._queue.set(index, interaction)
+        this._updateQueues = true
         return index
     }
 
     private static unregisterQueueItem(index: number) {
         this._queue.delete(index)
         this._queueCount--
+        this._updateQueues = true
     }
 }
 
