@@ -1,6 +1,6 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, ModalSubmitInteraction, TextChannel} from 'discord.js'
-import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions} from './Tasks.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, Message, ModalSubmitInteraction, TextChannel} from 'discord.js'
+import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions, MessageReference} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
@@ -13,9 +13,10 @@ export default class StabledBot {
     private getNextInteractionIndex(): number {
         return ++this._interactionIndex
     }
-    private getCachedData(index: number|string): MessageDerivedData|undefined {
+
+    private getCachedData(index: number | string): MessageDerivedData | undefined {
         const data = this._dataCache.get(Number(index))
-        if(data) this._dataCache.delete(Number(index))
+        if (data) this._dataCache.delete(Number(index))
         return data
     }
 
@@ -44,7 +45,7 @@ export default class StabledBot {
                 GatewayIntentBits.Guilds,
             ]
         })
-        client.once(Events.ClientReady, async(c) => {
+        client.once(Events.ClientReady, async (c) => {
             console.log(`Ready! Logged in as ${c.user.tag}`)
             loadProgressJob.start()
             try {
@@ -58,7 +59,8 @@ export default class StabledBot {
         if (!this._config?.token) throw new Error('No token found in config.json or config.local.json')
         else client.login(this._config.token).then()
 
-        client.on(Events.MessageCreate, async message => {})
+        client.on(Events.MessageCreate, async message => {
+        })
 
         client.on(Events.InteractionCreate, async interaction => {
             if (interaction.isButton()) {
@@ -68,8 +70,8 @@ export default class StabledBot {
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
                         const messageResult = await Tasks.getMessageForInteraction(interaction)
-                        if(messageResult) {
-                            if(
+                        if (messageResult) {
+                            if (
                                 messageResult.channel instanceof DMChannel // DMs are always deletable
                                 || data.user == interaction.user.username // Limit to creator in public channels
                             ) {
@@ -119,7 +121,7 @@ export default class StabledBot {
                     case Constants.BUTTON_VARIANT: {
                         const [cacheIndex, buttonIndex] = payload.split(':')
                         const cachedData = this._dataCache.get(Number(cacheIndex))
-                        if(cachedData) {
+                        if (cachedData) {
                             await runGen(
                                 'Here are the variations ',
                                 cachedData.prompt,
@@ -148,23 +150,25 @@ export default class StabledBot {
                     case Constants.BUTTON_UPSCALING: {
                         const [cacheIndex, buttonIndex] = payload.split(':')
                         const cachedData = this._dataCache.get(Number(cacheIndex))
-                        if(cachedData) {
-                            await interaction.deferReply()
+                        if (cachedData) {
+                            const reference = await StabledBot.replyQueuedAndGetReference(interaction)
                             try {
-                                const images = await Tasks.getAttachmentAndUpscale(interaction, cachedData.messageId, buttonIndex)
-                                if(Object.keys(images).length) {
+                                const images = await Tasks.getAttachmentAndUpscale(client, reference, cachedData.messageId, buttonIndex)
+                                const user = await reference.getUser(client)
+                                if (Object.keys(images).length) {
                                     const options = new SendImagesOptions(
                                         '', '', '', 1,
-                                        cachedData.spoiler, images, interaction,
-                                        `Here is the up-scaled image ${interaction.user}!`,
+                                        cachedData.spoiler, images, reference,
+                                        `Here is the up-scaled image ${user}!`,
                                         false, true
                                     )
-                                    await Tasks.sendImagesAsReply(options)
+                                    await Tasks.sendImagesAsReply(client, options)
                                 } else {
-                                    await StabledBot.nodeError(interaction)
+                                    await StabledBot.nodeError(client, reference)
                                 }
-                            } catch(e) {
-                                interaction.deleteReply()
+                            } catch (e) {
+                                const message = await reference.getMessage(client)
+                                await message?.delete()
                                 console.error(e)
                             }
                         } else {
@@ -200,23 +204,31 @@ export default class StabledBot {
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
                         const data = this.getCachedData(index)
-                        if(data) {
+                        if (data) {
                             const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
                             const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
                             await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, data.spoiler, interaction, data.seeds.shift())
                         } else {
-                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                            try {
+                                interaction.editReply({content: 'Failed to get cached data :('})
+                            } catch (e) {
+                                console.error(e)
+                            }
                         }
                         break
                     }
                     case Constants.PROMPT_REDO: {
                         const data = this.getCachedData(index)
-                        if(data) {
+                        if (data) {
                             const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
                             const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
                             await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, false, interaction)
                         } else {
-                            interaction.editReply({ content: 'Failed to get cached data :(' })
+                            try {
+                                interaction.editReply({content: 'Failed to get cached data :('})
+                            } catch (e) {
+                                console.error(e)
+                            }
                         }
                     }
                 }
@@ -236,12 +248,12 @@ export default class StabledBot {
             hires?: boolean
         ) {
             try {
-                await interaction.deferReply()
+                const reference = await StabledBot.replyQueuedAndGetReference(interaction)
 
                 // Generate
-                console.log(`Queuing up a ${count} image(s) for: ${interaction.user.username}`)
+                console.log(`Queuing up a ${count} image(s) for: ${reference.getConsoleLabel()}`)
                 const images = await Tasks.generateImages(new GenerateImagesOptions(
-                    interaction,
+                    reference,
                     prompt,
                     negativePrompt,
                     aspectRatio,
@@ -252,21 +264,22 @@ export default class StabledBot {
                 ))
                 if (Object.keys(images).length) {
                     // Send to Discord
-                    console.log(`Generated ${Object.keys(images).length} image(s) for: ${interaction.user.username}`)
-                    const reply = await Tasks.sendImagesAsReply(new SendImagesOptions(
+                    console.log(`Generated ${Object.keys(images).length} image(s) for: ${reference.getConsoleLabel()}`)
+                    const user = await reference.getUser(client)
+                    const reply = await Tasks.sendImagesAsReply(client, new SendImagesOptions(
                         prompt,
                         negativePrompt,
                         aspectRatio,
                         count,
                         spoiler,
                         images,
-                        interaction,
-                        `${messageStart} ${interaction.user}!`,
+                        reference,
+                        `${messageStart} ${user}!`,
                         variations,
                         hires
                     ))
                 } else {
-                    await StabledBot.nodeError(interaction)
+                    await StabledBot.nodeError(client, reference)
                 }
             } catch (e) {
                 console.error(e)
@@ -274,9 +287,37 @@ export default class StabledBot {
         }
     }
 
-    private static async nodeError(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
-        await interaction.editReply({
-            content: `Sorry ${interaction.user} but the node appears to be offline :(`
+    private static async nodeError(client: Client, reference: MessageReference) {
+        const message = await reference.getMessage(client)
+        const user = await reference.getUser(client)
+        try {
+            await message?.edit({
+                content: `Sorry ${user} but the node appears to be offline or the request timed out :(`
+            })
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    private static async replyQueuedAndGetReference(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<MessageReference> {
+        await interaction.reply({
+            content: `Queued...`
         })
+
+        let replyMessage: Message | undefined
+        try {
+            replyMessage = await interaction.fetchReply()
+        } catch (e) {
+            console.error(e)
+        }
+        return new MessageReference(
+            interaction.user.id,
+            interaction.channelId,
+            interaction.guildId,
+            replyMessage?.id ?? '',
+            interaction.user.username,
+            interaction.channel.name,
+            interaction.guild.name
+        )
     }
 }

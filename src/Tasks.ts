@@ -1,4 +1,4 @@
-import {ActionRowBuilder, ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, JSONEncodable, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle} from 'discord.js'
+import {ActionRowBuilder, ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, JSONEncodable, Message, messageLink, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import Utils from './Utils.js'
@@ -10,7 +10,7 @@ export default class Tasks {
     private static _rest: REST
     private static _queueCount = 0
     private static _queueIndex = 0
-    private static _queue: Map<number, ButtonInteraction | CommandInteraction | ModalSubmitInteraction> = new Map()
+    private static _queue: Map<number, MessageReference> = new Map()
 
     static async ensureREST() {
         const config = await Config.get()
@@ -133,7 +133,7 @@ export default class Tasks {
         }
 
         try {
-            const queueIndex = this.registerQueueItem(options.interaction)
+            const queueIndex = this.registerQueueItem(options.reference)
             const response: AxiosResponse<IStabledResponse> = await this._api.post(`txt2img`, body)
             this.unregisterQueueItem(queueIndex)
 
@@ -158,13 +158,10 @@ export default class Tasks {
         }
     }
 
-    static async getAttachmentAndUpscale(interaction: ButtonInteraction, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
+    static async getAttachmentAndUpscale(client: Client, reference: MessageReference, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
         await this.ensureAPI()
 
-        const channel = await this.getChannelFromInteraction(interaction)
-        if (!channel) throw('Could not get channel.')
-
-        const message = await channel.messages.fetch(messageId)
+        const message = await reference.getMessage(client)
         if (!message) throw('Could not get message.')
 
         const attachments = Array.from(message.attachments.values())
@@ -186,7 +183,7 @@ export default class Tasks {
             image: base64
         }
 
-        const queueIndex = this.registerQueueItem(interaction)
+        const queueIndex = this.registerQueueItem(reference)
         try {
             const upscaleResponse = await this._api.post(`extra-single-image`, body)
             if (upscaleResponse.data) {
@@ -199,7 +196,10 @@ export default class Tasks {
         return {}
     }
 
-    static async sendImagesAsReply(options: SendImagesOptions) {
+    static async sendImagesAsReply(client: Client, options: SendImagesOptions) {
+        const message = await options.reference.getMessage(client)
+        if (!message) throw('Could not get message.')
+
         const attachments = Object.entries(options.images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {
                 name: `${fileName}.png`
@@ -234,21 +234,20 @@ export default class Tasks {
             row.addComponents(deleteButton, upscaleButton)
         } else {
             row.addComponents(deleteButton, redoButton, editButton, varyButton, upscaleButton)
-
         }
 
         // Embeds
         const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
         if (options.hires || options.variations) {
             embeds.push({
-                fields: [{name: Constants.FIELD_USER, value: options.interaction.user.username ?? 'unknown', inline: true}]
+                fields: [{name: Constants.FIELD_USER, value: options.reference.userName, inline: true}]
             })
         } else {
             embeds.push({
                 fields: [
                     {name: Constants.FIELD_PROMPT, value: options.prompt, inline: false},
                     {name: Constants.FIELD_NEGATIVE_PROMPT, value: options.negativePrompt, inline: true},
-                    {name: Constants.FIELD_USER, value: options.interaction.user.username ?? 'unknown', inline: true},
+                    {name: Constants.FIELD_USER, value: options.reference.userName, inline: true},
                     {name: Constants.FIELD_COUNT, value: options.count.toString(), inline: true},
                     {name: Constants.FIELD_ASPECT_RATIO, value: options.aspectRatio, inline: true},
                     {name: Constants.FIELD_SPOILER, value: options.spoiler.toString(), inline: true}
@@ -258,7 +257,7 @@ export default class Tasks {
 
         // Reply
         try {
-            return await options.interaction.editReply({
+            return await message.edit({
                 content: options.message,
                 files: attachments,
                 components: [row],
@@ -464,8 +463,13 @@ export default class Tasks {
 
     static async updateProgressStatus(client: Client | undefined) {
         await this.ensureAPI()
-        const progressResponse: AxiosResponse<IProgressResponse> = await this._api.get('progress')
-        const progress = progressResponse.data
+        let progressResponse: AxiosResponse<IProgressResponse>
+        try {
+            progressResponse = await this._api.get('progress')
+        } catch (e) {
+            console.error(e)
+        }
+        const progress = progressResponse?.data
         if (!progress) return console.error('Could not get progress.')
 
         this._currentTick = !this._currentTick
@@ -485,30 +489,32 @@ export default class Tasks {
                         type: ActivityType.Custom
                     }]
                 })
-            } catch(e) {
+            } catch (e) {
                 console.error('Presence update failed.', e.message)
             }
         }
         const queueEntries = this._queue.entries()
         let currentItem = queueEntries.next()
-        const progressInteraction = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
+        const reference = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
         try {
-            progressInteraction?.editReply({
+            const message = await reference?.getMessage(client as Client)
+            message?.edit({
                 content: Utils.progressBar(progress.progress)
             })
         } catch (e) {
-            console.error('Progress update failed.', e.message)
+            // console.error('Progress update failed.', e.message) // This spams as it happens with a cron job regardless what else is going on.
         }
         let placeInQueue = 0
-        if(this._updateQueues && progressInteraction) {
+        if (this._updateQueues) {
             this._updateQueues = false
             while (currentItem?.value && !currentItem?.value?.done) {
                 currentItem = queueEntries.next()
-                if(currentItem.value) {
-                    const interaction = currentItem.value.length == 2 ? currentItem.value[1] : undefined
+                if (currentItem.value) {
+                    const reference = currentItem.value.length == 2 ? currentItem.value[1] : undefined
                     try {
-                        interaction?.editReply({
-                            content: `Queued... \`${++placeInQueue}/${this._queueCount-1}\``
+                        const message = await reference.getMessage(client)
+                        message?.edit({
+                            content: `Queued... \`${++placeInQueue}/${this._queueCount - 1}\``
                         })
                     } catch (e) {
                         console.error('Queue update failed.', e.message)
@@ -518,10 +524,10 @@ export default class Tasks {
         }
     }
 
-    private static registerQueueItem(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
+    private static registerQueueItem(reference: MessageReference) {
         const index = ++this._queueIndex
         this._queueCount++
-        this._queue.set(index, interaction)
+        this._queue.set(index, reference)
         this._updateQueues = true
         return index
     }
@@ -529,6 +535,13 @@ export default class Tasks {
     private static unregisterQueueItem(index: number) {
         this._queue.delete(index)
         this._queueCount--
+        this._updateQueues = true
+    }
+
+    private static clearQueue() {
+        this._queue.clear()
+        this._queueCount = 0
+        this._queueIndex = 0
         this._updateQueues = true
     }
 }
@@ -625,7 +638,7 @@ export class MessageDerivedData {
 
 export class GenerateImagesOptions {
     constructor(
-        public interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
+        public reference: MessageReference,
         public prompt: string = 'random garbage',
         public negativePrompt: string = '',
         public aspectRatio: string = '1:1',
@@ -645,7 +658,7 @@ export class SendImagesOptions {
         public count: number = 4,
         public spoiler: boolean = false,
         public images: IStringDictionary = {},
-        public interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction | undefined,
+        public reference: MessageReference,
         public message: string = '',
         public variations: boolean | undefined,
         public hires: boolean | undefined
@@ -670,4 +683,55 @@ export type TChannelType = TextChannel | DMChannel
 export interface IMessageForInteraction {
     message: Message
     channel: TChannelType
+}
+
+export class MessageReference {
+    constructor(
+        public userId: string = '',
+        public channelId: string = '',
+        public guildId: string = '',
+        public messageId: string = '',
+        public userName: string = '',
+        public channelName: string = '',
+        public guildName: string = ''
+    ) {
+    }
+
+    async getChannel(client: Client): Promise<TextChannel | DMChannel | undefined> {
+        try {
+            if (this.guildId) { // Server channel
+                const guild = client.guilds.cache.get(this.guildId)
+                const channel = guild?.channels.cache.get(this.channelId)
+                return channel as TextChannel
+            } else { // DM
+                const user = await client.users.fetch(this.userId)
+                return await user?.createDM()
+            }
+        } catch (e) {
+            console.error('Failed to load message channel.', e.message)
+        }
+    }
+
+    async getMessage(client: Client): Promise<Message | undefined> {
+        try {
+            const channel = await this.getChannel(client)
+            if (!channel) return undefined
+            return await channel.messages.fetch(this.messageId)
+        } catch (e) {
+            console.error('Failed to load message.', e.message)
+        }
+    }
+
+    async getUser(client: Client): Promise<User | undefined> {
+        try {
+            return await client.users.fetch(this.userId)
+        } catch (e) {
+            console.error('Failed to load user.', e.message)
+        }
+        return undefined
+    }
+
+    getConsoleLabel(): string {
+        return `${this.guildName ? this.guildName + ' > ' : '[DM] > '}${this.channelName ? this.channelName + ' > ' : ''}${this.userName}`
+    }
 }

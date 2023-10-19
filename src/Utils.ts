@@ -7,7 +7,7 @@ export default class Utils {
         return {width, height}
     }
 
-    static getSerial(seed: number|string, count: number|string): string {
+    static getSerial(seed: number | string, count: number | string): string {
         return `${Date.now()}${count}-${seed}`
     }
 
