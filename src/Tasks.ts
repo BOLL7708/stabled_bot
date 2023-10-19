@@ -95,7 +95,7 @@ export default class Tasks {
         }
     }
 
-    static async ensureAPI() {
+    private static async ensureAPI() {
         const config = await Config.get()
         if (!this._api) {
             this._api = axios.create({
@@ -477,13 +477,17 @@ export default class Tasks {
         if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
             this._currentStatus = newStatus
             this._currentActivity = newActivity
-            await client.user.setPresence({
-                status: newStatus,
-                activities: [{
-                    name: newActivity,
-                    type: ActivityType.Custom
-                }]
-            })
+            try {
+                await client.user.setPresence({
+                    status: newStatus,
+                    activities: [{
+                        name: newActivity,
+                        type: ActivityType.Custom
+                    }]
+                })
+            } catch(e) {
+                console.error('Presence update failed.', e.message)
+            }
         }
         const queueEntries = this._queue.entries()
         let currentItem = queueEntries.next()

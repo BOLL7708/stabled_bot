@@ -7,12 +7,14 @@ export default class Constants {
     static BUTTON_UPSCALE = 'up-scale'
     static BUTTON_UPSCALING = 'up-scaling'
     static BUTTON_DEAD = 'dead'
+
     static COMMAND_GEN = 'gen'
     static OPTION_PROMPT = 'prompt'
     static OPTION_NEGATIVE_PROMPT = 'negative-prompt'
     static OPTION_COUNT = 'count'
     static OPTION_ASPECT_RATIO = 'aspect-ratio'
     static OPTION_SPOILER = 'spoiler'
+
     static PROMPT_EDIT = 'prompt-edit'
     static PROMPT_REDO = 'prompt-redo'
     static INPUT_NEW_PROMPT = 'new-prompt'
