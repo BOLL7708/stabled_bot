@@ -6,6 +6,8 @@ export default class Constants {
     static BUTTON_VARIANT = 'variant'
     static BUTTON_UPSCALE = 'up-scale'
     static BUTTON_UPSCALING = 'up-scaling'
+    static BUTTON_DETAIL = 'detail'
+    static BUTTON_DETAILING = 'detailing'
     static BUTTON_DEAD = 'dead'
 
     static COMMAND_GEN = 'gen'

@@ -163,9 +163,13 @@ export default class StabledBot {
                                 if (Object.keys(images).length) {
                                     const options = new SendImagesOptions(
                                         '', '', '', 1,
-                                        cachedData.spoiler, images, reference,
+                                        cachedData.spoiler,
+                                        images,
+                                        reference,
                                         `Here is the up-scaled image ${user}!`,
-                                        false, true
+                                        false,
+                                        true,
+                                        false
                                     )
                                     await Tasks.sendImagesAsReply(client, options)
                                 } else {
@@ -176,6 +180,38 @@ export default class StabledBot {
                                 await message?.delete()
                                 console.error(e)
                             }
+                        } else {
+                            await interaction.reply({
+                                ephemeral: true,
+                                content: 'The menu has expired, dismiss it and relaunch.'
+                            })
+                        }
+                        break
+                    }
+                    case Constants.BUTTON_DETAIL: {
+                        const nextIndex = this.getNextInteractionIndex()
+                        this._dataCache.set(nextIndex, data)
+                        await Tasks.showButtons(Constants.BUTTON_DETAILING, 'Pick which image to generate more details for:', nextIndex, data.seeds.length, interaction)
+                        break
+                    }
+                    case Constants.BUTTON_DETAILING: {
+                        const [cacheIndex, buttonIndex] = payload.split(':')
+                        const cachedData = this._dataCache.get(Number(cacheIndex))
+                        if (cachedData) {
+                            await runGen(
+                                'Here are more details ',
+                                cachedData.prompt,
+                                cachedData.negativePrompt,
+                                cachedData.aspectRatio,
+                                1,
+                                cachedData.spoiler,
+                                interaction,
+                                cachedData.seeds[buttonIndex],
+                                // TODO: Add subseed support
+                                false,
+                                false,
+                                true
+                            )
                         } else {
                             await interaction.reply({
                                 ephemeral: true,
@@ -250,7 +286,8 @@ export default class StabledBot {
             interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
             seed?: string,
             variations?: boolean,
-            hires?: boolean
+            hires?: boolean,
+            details?: boolean
         ) {
             try {
                 const reference = await StabledBot.replyQueuedAndGetReference(interaction)
@@ -265,7 +302,8 @@ export default class StabledBot {
                     count,
                     seed,
                     variations,
-                    hires
+                    hires,
+                    details
                 ))
                 if (Object.keys(images).length) {
                     // Send to Discord
@@ -281,7 +319,8 @@ export default class StabledBot {
                         reference,
                         `${messageStart} ${user}!`,
                         variations,
-                        hires
+                        hires,
+                        details
                     ))
                 } else {
                     await StabledBot.nodeError(client, reference)

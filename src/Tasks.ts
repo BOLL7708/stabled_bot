@@ -115,7 +115,7 @@ export default class Tasks {
             prompt: options.prompt,
             negative_prompt: options.negativePrompt,
             n_iter: options.count,
-            steps: 20,
+            steps: options.details ? 80 : 20,
             width,
             height,
             seed: options.predefinedSeed ?? -1
@@ -225,32 +225,32 @@ export default class Tasks {
             .setCustomId(Constants.BUTTON_EDIT)
             .setEmoji('🔁')
             .setStyle(ButtonStyle.Secondary)
-        const varyButton = new ButtonBuilder()
-            .setCustomId(Constants.BUTTON_VARY)
-            .setEmoji('🎛')
-            .setStyle(ButtonStyle.Secondary)
         const upscaleButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_UPSCALE)
             .setEmoji('🍄')
             .setStyle(ButtonStyle.Secondary)
+        const varyButton = new ButtonBuilder()
+            .setCustomId(Constants.BUTTON_VARY)
+            .setEmoji('🎛')
+            .setStyle(ButtonStyle.Secondary)
+        const detailButton = new ButtonBuilder()
+            .setCustomId(Constants.BUTTON_DETAIL)
+            .setEmoji('🦚')
+            .setStyle(ButtonStyle.Secondary)
         const deadButton1 = Tasks.buildDeadButton(1)
         const deadButton2 = Tasks.buildDeadButton(2)
-        const deadButton3 = Tasks.buildDeadButton(3)
-        const deadButton4 = Tasks.buildDeadButton(4)
-        const deadButton5 = Tasks.buildDeadButton(5)
-        const deadButton6 = Tasks.buildDeadButton(6)
 
         // Components
         const components: ActionRowBuilder<ButtonBuilder>[] = []
         if (options.hires) {
             row1.addComponents(deleteButton)
             components.push(row1)
-        } else if (options.variations) {
+        } else if (options.variations || options.details) {
             row1.addComponents(deleteButton, upscaleButton)
             components.push(row1)
         } else {
             row1.addComponents(deleteButton, redoButton, editButton)
-            row2.addComponents(deadButton1, varyButton, upscaleButton)
+            row2.addComponents(upscaleButton, varyButton, detailButton)
             components.push(row1, row2)
         }
 
@@ -665,7 +665,8 @@ export class GenerateImagesOptions {
         public count: number = 4,
         public predefinedSeed: string | undefined,
         public variation: boolean | undefined,
-        public hires: boolean | undefined
+        public hires: boolean | undefined,
+        public details: boolean | undefined
     ) {
     }
 }
@@ -681,7 +682,8 @@ export class SendImagesOptions {
         public reference: MessageReference,
         public message: string = '',
         public variations: boolean | undefined,
-        public hires: boolean | undefined
+        public hires: boolean | undefined,
+        public details: boolean | undefined
     ) {
     }
 }
