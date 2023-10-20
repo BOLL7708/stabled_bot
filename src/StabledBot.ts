@@ -4,6 +4,7 @@ import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, Sen
 import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
+import Utils, {Color} from './Utils.js'
 
 export default class StabledBot {
     private _config: IConfig
@@ -46,7 +47,7 @@ export default class StabledBot {
             ]
         })
         client.once(Events.ClientReady, async (c) => {
-            console.log(`Ready! Logged in as ${c.user.tag}`)
+            Utils.log('Ready, logged in as', c.user.tag, c.user.username)
             loadProgressJob.start()
             try {
                 await c.user.setUsername('Stabled')
@@ -64,7 +65,7 @@ export default class StabledBot {
 
         client.on(Events.InteractionCreate, async interaction => {
             if (interaction.isButton()) {
-                console.log('Button clicked:', interaction.customId, 'by:', interaction.user.username)
+                Utils.log('Button triggered', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, payload] = interaction.customId.split('#')
                 const data = await Tasks.getDataFromMessage(interaction.message)
                 switch (type.toLowerCase()) {
@@ -199,7 +200,7 @@ export default class StabledBot {
                     }
                 }
             } else if (interaction.isModalSubmit()) {
-                console.log('Modal submitted:', interaction.customId, ', by:', interaction.user.username)
+                Utils.log('Modal result received', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, index] = interaction.customId.split('#')
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
@@ -251,7 +252,7 @@ export default class StabledBot {
                 const reference = await StabledBot.replyQueuedAndGetReference(interaction)
 
                 // Generate
-                console.log(`Queuing up a ${count} image(s) for: ${reference.getConsoleLabel()}`)
+                Utils.log('Adding to queue', `${count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
                 const images = await Tasks.generateImages(new GenerateImagesOptions(
                     reference,
                     prompt,
@@ -264,7 +265,7 @@ export default class StabledBot {
                 ))
                 if (Object.keys(images).length) {
                     // Send to Discord
-                    console.log(`Generated ${Object.keys(images).length} image(s) for: ${reference.getConsoleLabel()}`)
+                    Utils.log('Finished generating', `${Object.keys(images).length} image(s)`, reference.getConsoleLabel(), Color.FgGreen)
                     const user = await reference.getUser(client)
                     const reply = await Tasks.sendImagesAsReply(client, new SendImagesOptions(
                         prompt,
@@ -311,13 +312,13 @@ export default class StabledBot {
             console.error(e)
         }
         return new MessageReference(
-            interaction.user.id,
-            interaction.channelId,
-            interaction.guildId,
+            interaction?.user?.id,
+            interaction?.channelId,
+            interaction?.guildId,
             replyMessage?.id ?? '',
-            interaction.user.username,
-            interaction.channel.name,
-            interaction.guild.name
+            interaction?.user?.username,
+            interaction?.channel?.name,
+            interaction?.guild?.name
         )
     }
 }

@@ -158,19 +158,24 @@ export default class Tasks {
         }
     }
 
-    static async getAttachmentAndUpscale(client: Client, reference: MessageReference, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
-        await this.ensureAPI()
-
-        const message = await reference.getMessage(client)
+    private static async getAttachment(channel: TextChannel | DMChannel, messageId: string, index: number | string): Promise<IAttachment> {
+        const message = await channel?.messages?.fetch(messageId)
         if (!message) throw('Could not get message.')
-
         const attachments = Array.from(message.attachments.values())
-        const attachment = attachments.at(Number(buttonIndex))
+        const attachment = attachments.at(Number(index))
         if (!attachment) throw('Could not get attachment.')
-
         const attachmentResponse = await axios.get(attachment.url, {responseType: 'arraybuffer'})
         const base64 = Buffer.from(attachmentResponse.data, 'binary').toString('base64')
         if (base64.length == 0) throw('Could not download image data.')
+        return {name: attachment.name, data: base64 }
+    }
+
+    static async getAttachmentAndUpscale(client: Client, reference: MessageReference, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
+        await this.ensureAPI()
+
+        const channel = await reference.getChannel(client)
+        if (!channel) throw('Could not get channel.')
+        const attachment = await this.getAttachment(channel, messageId, buttonIndex)
         const fileName = attachment.name.replace('.png', '')
 
         const upscaleFactor = 4
@@ -180,20 +185,21 @@ export default class Tasks {
             upscaler_2: 'None',
             extras_upscaler_2_visibility: 0,
             upscale_first: false,
-            image: base64
+            image: attachment.data
         }
 
         const queueIndex = this.registerQueueItem(reference)
+        let response: IStringDictionary = {}
         try {
             const upscaleResponse = await this._api.post(`extra-single-image`, body)
             if (upscaleResponse.data) {
-                return {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
+                response = {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
             }
         } catch (e) {
             console.error('Up-scaling failed', e.message)
         }
         this.unregisterQueueItem(queueIndex)
-        return {}
+        return response
     }
 
     static async sendImagesAsReply(client: Client, options: SendImagesOptions) {
@@ -471,6 +477,10 @@ export default class Tasks {
         }
         const progress = progressResponse?.data
         if (!progress) return console.error('Could not get progress.')
+        if(progress.state.job_count <= 0) {
+            this._queue.clear()
+            this._queueCount = 0
+        }
 
         this._currentTick = !this._currentTick
         const idle = progress.state.job_count <= 0
@@ -685,6 +695,11 @@ export interface IMessageForInteraction {
     channel: TChannelType
 }
 
+export interface IAttachment {
+    name: string
+    data: string
+}
+
 export class MessageReference {
     constructor(
         public userId: string = '',
@@ -732,6 +747,6 @@ export class MessageReference {
     }
 
     getConsoleLabel(): string {
-        return `${this.guildName ? this.guildName + ' > ' : '[DM] > '}${this.channelName ? this.channelName + ' > ' : ''}${this.userName}`
+        return `${this.guildName ? this.guildName + ' > ' : 'DM > '}${this.channelName ? this.channelName + ' > ' : ''}${this.userName}`
     }
 }
