@@ -211,7 +211,8 @@ export default class Tasks {
                 name: `${fileName}.png`
             }).setSpoiler(options.spoiler)
         })
-        const row = new ActionRowBuilder<ButtonBuilder>()
+        const row1 = new ActionRowBuilder<ButtonBuilder>()
+        const row2 = new ActionRowBuilder<ButtonBuilder>()
         const deleteButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_DELETE)
             .setEmoji('❌')
@@ -232,14 +233,25 @@ export default class Tasks {
             .setCustomId(Constants.BUTTON_UPSCALE)
             .setEmoji('🍄')
             .setStyle(ButtonStyle.Secondary)
+        const deadButton1 = Tasks.buildDeadButton(1)
+        const deadButton2 = Tasks.buildDeadButton(2)
+        const deadButton3 = Tasks.buildDeadButton(3)
+        const deadButton4 = Tasks.buildDeadButton(4)
+        const deadButton5 = Tasks.buildDeadButton(5)
+        const deadButton6 = Tasks.buildDeadButton(6)
 
         // Components
+        const components: ActionRowBuilder<ButtonBuilder>[] = []
         if (options.hires) {
-            row.addComponents(deleteButton)
+            row1.addComponents(deleteButton)
+            components.push(row1)
         } else if (options.variations) {
-            row.addComponents(deleteButton, upscaleButton)
+            row1.addComponents(deleteButton, upscaleButton)
+            components.push(row1)
         } else {
-            row.addComponents(deleteButton, redoButton, editButton, varyButton, upscaleButton)
+            row1.addComponents(deleteButton, redoButton, editButton)
+            row2.addComponents(deadButton1, varyButton, upscaleButton)
+            components.push(row1, row2)
         }
 
         // Embeds
@@ -266,7 +278,7 @@ export default class Tasks {
             return await message.edit({
                 content: options.message,
                 files: attachments,
-                components: [row],
+                components,
                 embeds
             })
         } catch (e) {
@@ -305,14 +317,6 @@ export default class Tasks {
         const row3 = new ActionRowBuilder<ButtonBuilder>()
         const row4 = new ActionRowBuilder<ButtonBuilder>()
 
-        function buildDeadButton(index: number) {
-            return new ButtonBuilder()
-                .setCustomId(`${Constants.BUTTON_DEAD}#${index}`)
-                .setLabel('‎ ') // Invisible
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(true)
-        }
-
         function buildButton(index: number, label: string) {
             return new ButtonBuilder()
                 .setCustomId(`${type}#${cacheIndex}:${index}`)
@@ -330,8 +334,8 @@ export default class Tasks {
         const button8 = buildButton(7, '8')
         const button9 = buildButton(8, '9')
         const button10 = buildButton(9, '10')
-        const deadButton1 = buildDeadButton(1)
-        const deadButton2 = buildDeadButton(2)
+        const deadButton1 = Tasks.buildDeadButton(1)
+        const deadButton2 = Tasks.buildDeadButton(2)
 
         const components: ActionRowBuilder<ButtonBuilder>[] = []
         switch (buttonCount) {
@@ -476,7 +480,7 @@ export default class Tasks {
             console.error(e)
         }
         const progress = progressResponse?.data
-        if (!progress) return console.error('Could not get progress.')
+        if (!progress) throw('Could not get progress.')
         if(progress.state.job_count <= 0) {
             this._queue.clear()
             this._queueCount = 0
@@ -506,14 +510,12 @@ export default class Tasks {
         const queueEntries = this._queue.entries()
         let currentItem = queueEntries.next()
         const reference = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
-        try {
-            const message = await reference?.getMessage(client as Client)
-            message?.edit({
-                content: Utils.progressBar(progress.progress)
-            })
-        } catch (e) {
-            // console.error('Progress update failed.', e.message) // This spams as it happens with a cron job regardless what else is going on.
-        }
+
+        const message = await reference?.getMessage(client as Client) // This will throw, which is fine.
+        message?.edit({
+            content: Utils.progressBar(progress.progress)
+        })
+
         let placeInQueue = 0
         if (this._updateQueues) {
             this._updateQueues = false
@@ -553,6 +555,14 @@ export default class Tasks {
         this._queueCount = 0
         this._queueIndex = 0
         this._updateQueues = true
+    }
+
+    private static buildDeadButton(index: number) {
+        return new ButtonBuilder()
+            .setCustomId(`${Constants.BUTTON_DEAD}#${index}`)
+            .setLabel('‎ ') // Invisible
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true)
     }
 }
 

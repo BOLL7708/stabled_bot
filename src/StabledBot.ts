@@ -28,7 +28,11 @@ export default class StabledBot {
         const loadProgressJob = new CronJob(
             '*/5 * * * * *',
             async () => {
-                await Tasks.updateProgressStatus(client)
+                try {
+                    await Tasks.updateProgressStatus(client)
+                } catch (e) {
+                    console.error(e.message)
+                }
             },
             null,
             false
