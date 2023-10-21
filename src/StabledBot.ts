@@ -1,10 +1,13 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, Message, ModalSubmitInteraction} from 'discord.js'
-import Tasks, {GenerateImagesOptions, IAttachment, MessageDerivedData, MessageReference, PromptUserOptions, SendImagesOptions} from './Tasks.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, ModalSubmitInteraction} from 'discord.js'
+import Tasks, {MessageDerivedData} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
 import Utils, {Color} from './Utils.js'
+import DiscordCom, {MessageReference, PromptUserOptions, SendImagesOptions} from './DiscordCom.js'
+import StabledAPI, {GenerateImagesOptions} from './StabledAPI.js'
+import DiscordUtils, {IAttachment} from './DiscordUtils.js'
 
 export default class StabledBot {
     private _config: IConfig
@@ -38,8 +41,8 @@ export default class StabledBot {
             false
         )
 
+        await DiscordCom.registerCommands()
         this._config = await Config.get()
-        await Tasks.registerCommands()
 
         // Create Discord client
         const client: Client = new Client({
@@ -74,7 +77,7 @@ export default class StabledBot {
                 const data = await Tasks.getDataFromMessage(interaction.message)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
-                        const messageResult = await Tasks.getMessageForInteraction(interaction)
+                        const messageResult = await DiscordUtils.getMessageForInteraction(interaction)
                         if (messageResult) {
                             if (
                                 messageResult.channel instanceof DMChannel // DMs are always deletable
@@ -94,7 +97,7 @@ export default class StabledBot {
                     case Constants.BUTTON_REDO: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.promptUser(new PromptUserOptions(
+                        await DiscordCom.promptUser(new PromptUserOptions(
                             Constants.PROMPT_REDO,
                             "Random Seed",
                             interaction,
@@ -107,7 +110,7 @@ export default class StabledBot {
                     case Constants.BUTTON_EDIT: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.promptUser(new PromptUserOptions(
+                        await DiscordCom.promptUser(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
                             "Reused Seed",
                             interaction,
@@ -120,7 +123,7 @@ export default class StabledBot {
                     case Constants.BUTTON_VARY: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations for:', nextIndex, data.seeds.length, interaction)
+                        await DiscordCom.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations for:', nextIndex, data.seeds.length, interaction)
                         break
                     }
                     case Constants.BUTTON_VARIANT: {
@@ -149,14 +152,14 @@ export default class StabledBot {
                     case Constants.BUTTON_UPSCALE: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.showButtons(Constants.BUTTON_UPSCALING, 'Pick which image to up-scale:', nextIndex, data.seeds.length, interaction)
+                        await DiscordCom.showButtons(Constants.BUTTON_UPSCALING, 'Pick which image to up-scale:', nextIndex, data.seeds.length, interaction)
                         break
                     }
                     case Constants.BUTTON_UPSCALING: {
                         const [cacheIndex, buttonIndex] = payload.split(':')
                         const cachedData = this._dataCache.get(Number(cacheIndex))
                         if (cachedData) {
-                            const reference = await StabledBot.replyQueuedAndGetReference(interaction)
+                            const reference = await DiscordCom.replyQueuedAndGetReference(interaction)
                             try {
                                 const images = await Tasks.getAttachmentAndUpscale(client, reference, cachedData.messageId, buttonIndex)
                                 const user = await reference.getUser(client)
@@ -171,7 +174,7 @@ export default class StabledBot {
                                         true,
                                         false
                                     )
-                                    await Tasks.sendImagesAsReply(client, options)
+                                    await DiscordCom.sendImagesAsReply(client, options)
                                 } else {
                                     await StabledBot.nodeError(client, reference)
                                 }
@@ -191,7 +194,7 @@ export default class StabledBot {
                     case Constants.BUTTON_DETAIL: {
                         const nextIndex = this.getNextInteractionIndex()
                         this._dataCache.set(nextIndex, data)
-                        await Tasks.showButtons(Constants.BUTTON_DETAILING, 'Pick which image to generate more details for:', nextIndex, data.seeds.length, interaction)
+                        await DiscordCom.showButtons(Constants.BUTTON_DETAILING, 'Pick which image to generate more details for:', nextIndex, data.seeds.length, interaction)
                         break
                     }
                     case Constants.BUTTON_DETAILING: {
@@ -223,13 +226,13 @@ export default class StabledBot {
                     case Constants.BUTTON_INFO: {
                         let attachment: IAttachment
                         try {
-                            attachment = await Tasks.getAttachmentFromMessage(interaction.message, 0)
+                            attachment = await DiscordUtils.getAttachmentFromMessage(interaction.message, 0)
                         } catch (e) {
                             console.error(e.message)
                         }
                         if (attachment) {
-                            const pngInfo = await Tasks.getPNGInfo(attachment.data)
-                            const pngInfoObj = Utils.parsePNGInfo(pngInfo.info)
+                            const pngInfo = await StabledAPI.getPNGInfo(attachment.data)
+                            const pngInfoObj = Utils.parsePNGInfo(pngInfo?.info)
                             // TODO: Make it pretty
                             await interaction.reply({
                                 ephemeral: true,
@@ -308,11 +311,11 @@ export default class StabledBot {
             details?: boolean
         ) {
             try {
-                const reference = await StabledBot.replyQueuedAndGetReference(interaction)
+                const reference = await DiscordCom.replyQueuedAndGetReference(interaction)
 
                 // Generate
                 Utils.log('Adding to queue', `${count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
-                const images = await Tasks.generateImages(new GenerateImagesOptions(
+                const images = await StabledAPI.generateImages(new GenerateImagesOptions(
                     reference,
                     prompt,
                     negativePrompt,
@@ -327,7 +330,7 @@ export default class StabledBot {
                     // Send to Discord
                     Utils.log('Finished generating', `${Object.keys(images).length} image(s)`, reference.getConsoleLabel(), Color.FgGreen)
                     const user = await reference.getUser(client)
-                    const reply = await Tasks.sendImagesAsReply(client, new SendImagesOptions(
+                    const reply = await DiscordCom.sendImagesAsReply(client, new SendImagesOptions(
                         prompt,
                         negativePrompt,
                         aspectRatio,
@@ -359,27 +362,5 @@ export default class StabledBot {
         } catch (e) {
             console.error(e)
         }
-    }
-
-    private static async replyQueuedAndGetReference(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<MessageReference> {
-        await interaction.reply({
-            content: `Queued...`
-        })
-
-        let replyMessage: Message | undefined
-        try {
-            replyMessage = await interaction.fetchReply()
-        } catch (e) {
-            console.error(e)
-        }
-        return new MessageReference(
-            interaction?.user?.id,
-            interaction?.channelId,
-            interaction?.guildId,
-            replyMessage?.id ?? '',
-            interaction?.user?.username,
-            interaction?.channel?.name,
-            interaction?.guild?.name
-        )
     }
 }

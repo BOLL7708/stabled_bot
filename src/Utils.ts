@@ -23,9 +23,11 @@ export default class Utils {
         console.log(`${color}${title} ${Color.Reset}[${valueColor}${value}${Color.Reset}] ${byUser}`)
     }
 
-    static parsePNGInfo(info: string): PngInfo {
+    static parsePNGInfo(info?: string): PngInfo {
         const MATCH_NEGATIVE_PROMPT = 'Negative prompt:'
         const pngInfo = new PngInfo()
+        if (!info) return pngInfo
+
         const rows = info.split(/\n/g)
         pngInfo.prompt = rows.shift()
         for (const row of rows) {
@@ -95,4 +97,8 @@ export class Color {
     static BgCyan = "\x1b[46m"
     static BgWhite = "\x1b[47m"
     static BgGray = "\x1b[100m"
+}
+
+export interface IStringDictionary {
+    [key: string]: string
 }
