@@ -61,10 +61,14 @@ export default class Tasks {
         return data
     }
 
-    static _currentStatus: string = ''
-    static _currentActivity: string = ''
-    static _currentTick: boolean = false
-    static _updateQueues: boolean = false
+    private static _currentStatus: string = ''
+    private static _currentActivity: string = ''
+    private static _currentTick: boolean = false
+    private static _updateQueues: boolean = false
+
+    static updateQueues() {
+        this._updateQueues = true
+    }
 
     static async updateProgressStatus(client: Client | undefined) {
         const progress = await StabledAPI.getProgress()
@@ -101,7 +105,7 @@ export default class Tasks {
 
         const message = await reference?.getMessage(client as Client) // This will throw, which is fine.
         message?.edit({
-            content: Utils.progressBar(progress.progress)
+            content: await Utils.progressBarMessage(progress.progress)
         })
 
         let placeInQueue = 0
@@ -117,7 +121,7 @@ export default class Tasks {
                             content: `Queued... \`${++placeInQueue}/${queueCount - 1}\``
                         })
                     } catch (e) {
-                        console.error('Queue update failed.', e.message)
+                        console.error('Queue update failed:', e.message)
                     }
                 }
             }

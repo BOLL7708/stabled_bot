@@ -36,7 +36,6 @@ export default class StabledAPI {
             width,
             height,
             seed: options.predefinedSeed ?? -1
-            // TODO: Try to figure out variations.
         }
         if (options.variation) {
             body['subseed'] = -1
@@ -54,7 +53,7 @@ export default class StabledAPI {
         try {
             response = await this._api.post(`txt2img`, body)
         } catch (e) {
-            console.error(e)
+            console.error('Error queueing up image generation:', e.message)
         }
         this.unregisterQueueItem(queueIndex)
 

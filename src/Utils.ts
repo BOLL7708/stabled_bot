@@ -1,3 +1,5 @@
+import Config from './Config.js'
+
 export default class Utils {
     static calculateWidthHeightForAspectRatio(aspectRatioStr: string) {
         const aspectRatioPair = aspectRatioStr.split(':')
@@ -11,11 +13,10 @@ export default class Utils {
         return `${Date.now()}${count}-${seed}`
     }
 
-    static progressBar(value: number): string {
-        // Generate a progress bar with 20 characters
-        const progress = Math.round(value * 25)
-        const bar = '|'.repeat(progress) + '-'.repeat(25 - progress)
-        return `Generating... \`[${bar}] ${Math.round(value * 100)}%\``
+    static async progressBarMessage(value: number): Promise<string> {
+        const bar = (await Config.get()).progressBarSymbols
+        const index = Math.round(value * bar.length)
+        return `Generating... ${bar.slice(0, index).join('')}${'⚫'.repeat(bar.length-index)} \`${Math.round(value*100)}%\``
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {

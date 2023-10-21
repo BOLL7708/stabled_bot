@@ -3,6 +3,8 @@
   "clientSecret": "",
   "token": "",
   "serverId": "",
-  "apiUrl": "",
-  "timeoutMins": 5
+  "apiUrl": "http://localhost:7860",
+  "timeoutMins": 5,
+  "botUserName": "Stabled",
+  "progressBarSymbols": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
 }

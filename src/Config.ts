@@ -29,4 +29,6 @@ export interface IConfig {
     serverId: string
     serverAddress: string
     timeoutMins: number
+    botUserName: string
+    progressBarSymbols: string[]
 }

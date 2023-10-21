@@ -34,7 +34,7 @@ export default class StabledBot {
                 try {
                     await Tasks.updateProgressStatus(client)
                 } catch (e) {
-                    console.error(e.message)
+                    console.error('Progress failed to update:', e.message)
                 }
             },
             null,
@@ -57,7 +57,9 @@ export default class StabledBot {
             Utils.log('Ready, logged in as', c.user.tag, c.user.username)
             loadProgressJob.start()
             try {
-                await c.user.setUsername('Stabled')
+                if(client.user.username != this._config.botUserName) {
+                    await c.user.setUsername(this._config.botUserName)
+                }
             } catch (e) {
                 console.error('Failed to update username:', e.message)
             }
@@ -161,7 +163,9 @@ export default class StabledBot {
                         if (cachedData) {
                             const reference = await DiscordCom.replyQueuedAndGetReference(interaction)
                             try {
+                                Tasks.updateQueues()
                                 const images = await Tasks.getAttachmentAndUpscale(client, reference, cachedData.messageId, buttonIndex)
+                                Tasks.updateQueues()
                                 const user = await reference.getUser(client)
                                 if (Object.keys(images).length) {
                                     const options = new SendImagesOptions(
@@ -315,6 +319,7 @@ export default class StabledBot {
 
                 // Generate
                 Utils.log('Adding to queue', `${count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
+                Tasks.updateQueues()
                 const images = await StabledAPI.generateImages(new GenerateImagesOptions(
                     reference,
                     prompt,
@@ -326,6 +331,7 @@ export default class StabledBot {
                     hires,
                     details
                 ))
+                Tasks.updateQueues()
                 if (Object.keys(images).length) {
                     // Send to Discord
                     Utils.log('Finished generating', `${Object.keys(images).length} image(s)`, reference.getConsoleLabel(), Color.FgGreen)
