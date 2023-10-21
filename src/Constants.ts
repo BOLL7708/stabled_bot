@@ -9,6 +9,7 @@ export default class Constants {
     static BUTTON_DETAIL = 'detail'
     static BUTTON_DETAILING = 'detailing'
     static BUTTON_DEAD = 'dead'
+    static BUTTON_INFO = 'info'
 
     static COMMAND_GEN = 'gen'
     static OPTION_PROMPT = 'prompt'

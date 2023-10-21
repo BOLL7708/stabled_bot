@@ -19,9 +19,52 @@ export default class Utils {
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {
-        if(!valueColor) valueColor = color
+        if (!valueColor) valueColor = color
         console.log(`${color}${title} ${Color.Reset}[${valueColor}${value}${Color.Reset}] ${byUser}`)
     }
+
+    static parsePNGInfo(info: string): PngInfo {
+        const MATCH_NEGATIVE_PROMPT = 'Negative prompt:'
+        const pngInfo = new PngInfo()
+        const rows = info.split(/\n/g)
+        pngInfo.prompt = rows.shift()
+        for (const row of rows) {
+            if (row.startsWith(MATCH_NEGATIVE_PROMPT)) pngInfo.negativePrompt = row.replace(MATCH_NEGATIVE_PROMPT, '').trim()
+            else {
+                const pairs = row.split(/,/g)
+                for (const pair of pairs) {
+                    const [label, value] = pair.split(':')
+                    pngInfo[Utils.toCamelCase(label)] = value.trim()
+                }
+            }
+        }
+        return pngInfo
+    }
+
+    // Convert sentence to camelcase
+    static toCamelCase(str: string): string {
+        return str.trim().toLowerCase().replace(/\W+(.)/g, function (word, chr) {
+            return chr.toUpperCase()
+        })
+            .replace(/\s+/g, '') // Remove whitespace
+            .replace(/\W/g, '') // Remove non-word characters
+    }
+}
+
+export class PngInfo {
+    prompt = ''
+    negativePrompt = ''
+    steps: string = ''
+    sampler: string = ''
+    cfgScale: string = ''
+    seed: string = ''
+    faceRestoration: string = ''
+    size: string = ''
+    modelHash: string = ''
+    model: string = ''
+    denoisingStrength: string = ''
+    version: string = ''
+    // TODO: Add more fields
 }
 
 export class Color {

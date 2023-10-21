@@ -1,6 +1,6 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, Message, ModalSubmitInteraction, TextChannel} from 'discord.js'
-import Tasks, {MessageDerivedData, GenerateImagesOptions, PromptUserOptions, SendImagesOptions, MessageReference} from './Tasks.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, Message, ModalSubmitInteraction} from 'discord.js'
+import Tasks, {GenerateImagesOptions, IAttachment, MessageDerivedData, MessageReference, PromptUserOptions, SendImagesOptions} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
@@ -216,6 +216,24 @@ export default class StabledBot {
                             await interaction.reply({
                                 ephemeral: true,
                                 content: 'The menu has expired, dismiss it and relaunch.'
+                            })
+                        }
+                        break
+                    }
+                    case Constants.BUTTON_INFO: {
+                        let attachment: IAttachment
+                        try {
+                            attachment = await Tasks.getAttachmentFromMessage(interaction.message, 0)
+                        } catch (e) {
+                            console.error(e.message)
+                        }
+                        if (attachment) {
+                            const pngInfo = await Tasks.getPNGInfo(attachment.data)
+                            const pngInfoObj = Utils.parsePNGInfo(pngInfo.info)
+                            // TODO: Make it pretty
+                            await interaction.reply({
+                                ephemeral: true,
+                                content: '```json\n' + JSON.stringify(pngInfoObj, null, 2) + '```'
                             })
                         }
                         break

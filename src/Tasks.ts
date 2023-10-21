@@ -1,4 +1,4 @@
-import {ActionRowBuilder, ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, JSONEncodable, Message, messageLink, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ActionRowBuilder, ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, JSONEncodable, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import Utils from './Utils.js'
@@ -158,16 +158,34 @@ export default class Tasks {
         }
     }
 
-    private static async getAttachment(channel: TextChannel | DMChannel, messageId: string, index: number | string): Promise<IAttachment> {
-        const message = await channel?.messages?.fetch(messageId)
-        if (!message) throw('Could not get message.')
+    static async getAttachmentFromMessage(message: Message, index: number | string): Promise<IAttachment> {
         const attachments = Array.from(message.attachments.values())
         const attachment = attachments.at(Number(index))
         if (!attachment) throw('Could not get attachment.')
         const attachmentResponse = await axios.get(attachment.url, {responseType: 'arraybuffer'})
         const base64 = Buffer.from(attachmentResponse.data, 'binary').toString('base64')
         if (base64.length == 0) throw('Could not download image data.')
-        return {name: attachment.name, data: base64 }
+        return {name: attachment.name, data: base64}
+    }
+
+    static async getAttachment(channel: TextChannel | DMChannel, messageId: string, index: number | string): Promise<IAttachment> {
+        const message = await channel?.messages?.fetch(messageId)
+        if (!message) throw('Could not get message.')
+        const attachment = await this.getAttachmentFromMessage(message, index)
+        if (!attachment) throw('Could not get attachment.')
+        return attachment
+    }
+
+    static async getPNGInfo(base64ImageData: string): Promise<IPNGInfo | undefined> {
+        const body = {
+            image: base64ImageData
+        }
+        try {
+            const response: AxiosResponse<IPNGInfo> = await this._api.post(`png-info`, body)
+            return response.data
+        } catch (e) {
+            console.error(e)
+        }
     }
 
     static async getAttachmentAndUpscale(client: Client, reference: MessageReference, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
@@ -237,6 +255,10 @@ export default class Tasks {
             .setCustomId(Constants.BUTTON_DETAIL)
             .setEmoji('🦚')
             .setStyle(ButtonStyle.Secondary)
+        const infoButton = new ButtonBuilder()
+            .setCustomId(Constants.BUTTON_INFO)
+            .setEmoji('ℹ')
+            .setStyle(ButtonStyle.Secondary)
         const deadButton1 = Tasks.buildDeadButton(1)
         const deadButton2 = Tasks.buildDeadButton(2)
 
@@ -246,11 +268,11 @@ export default class Tasks {
             row1.addComponents(deleteButton)
             components.push(row1)
         } else if (options.variations || options.details) {
-            row1.addComponents(deleteButton, upscaleButton)
+            row1.addComponents(deleteButton, infoButton, upscaleButton)
             components.push(row1)
         } else {
-            row1.addComponents(deleteButton, redoButton, editButton)
-            row2.addComponents(upscaleButton, varyButton, detailButton)
+            row1.addComponents(deleteButton, redoButton, editButton, upscaleButton)
+            row2.addComponents(deadButton1, infoButton, varyButton, detailButton)
             components.push(row1, row2)
         }
 
@@ -481,7 +503,7 @@ export default class Tasks {
         }
         const progress = progressResponse?.data
         if (!progress) throw('Could not get progress.')
-        if(progress.state.job_count <= 0) {
+        if (progress.state.job_count <= 0) {
             this._queue.clear()
             this._queueCount = 0
         }
@@ -710,6 +732,13 @@ export interface IMessageForInteraction {
 export interface IAttachment {
     name: string
     data: string
+}
+
+export interface IPNGInfo {
+    info: string
+    items: {
+        parameters: string
+    }
 }
 
 export class MessageReference {
