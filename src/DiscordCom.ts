@@ -359,7 +359,7 @@ export class MessageReference {
                 return await user?.createDM()
             }
         } catch (e) {
-            console.error('Failed to load message channel.', e.message)
+            console.error('Failed to load message channel:', e.message)
         }
     }
 
@@ -369,7 +369,7 @@ export class MessageReference {
             if (!channel) return undefined
             return await channel.messages.fetch(this.messageId)
         } catch (e) {
-            console.error('Failed to load message.', e.message)
+            console.error('Failed to load message:', e.message)
         }
     }
 
@@ -377,7 +377,7 @@ export class MessageReference {
         try {
             return await client.users.fetch(this.userId)
         } catch (e) {
-            console.error('Failed to load user.', e.message)
+            console.error('Failed to load user:', e.message)
         }
         return undefined
     }

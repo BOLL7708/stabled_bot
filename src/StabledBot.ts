@@ -419,14 +419,14 @@ export default class StabledBot {
     }
 
     private static async nodeError(client: Client, reference: MessageReference) {
-        const message = await reference.getMessage(client)
-        const user = await reference.getUser(client)
         try {
+            const message = await reference.getMessage(client)
+            const user = await reference.getUser(client)
             await message?.edit({
                 content: `Sorry ${user} but the node appears to be offline or the request timed out :(`
             })
         } catch (e) {
-            console.error(e)
+            console.error('Failed to post error message:', e.message)
         }
     }
 
@@ -436,10 +436,14 @@ export default class StabledBot {
      * @private
      */
     private static async replyDataError(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
-        await interaction.reply({
-            ephemeral: true,
-            content: 'The menu has expired, dismiss it and relaunch.'
-        })
+        try {   
+            await interaction.reply({
+                ephemeral: true,
+                content: 'The menu has expired, dismiss it and relaunch.'
+            })
+        } catch(e) {
+            console.error('Failed to post error message:', e.message)
+        }
     }
 
     /**
