@@ -30,6 +30,8 @@ export default class StabledAPI {
         await this.ensureAPI()
         const [width, height] = options.size.split('x')
 
+        const seed = Number(options.predefinedSeed?.seed)
+        const subseed = Number(options.predefinedSeed?.variantSeed)
         const body = {
             prompt: options.prompt,
             negative_prompt: options.negativePrompt,
@@ -37,8 +39,13 @@ export default class StabledAPI {
             steps: options.details ? 80 : 20,
             width,
             height,
-            seed: options.predefinedSeed?.seed ?? -1,
-            subseed: options.predefinedSeed?.variantSeed ?? -1
+            seed: isNaN(seed) ? -1 : seed
+        }
+
+        if(!isNaN(subseed) && subseed > 0) {
+            // To retain subseed usage when increasing details
+            body['subseed'] = subseed
+            body['subseed_strength'] = 0.1 // TODO: Move to config
         }
         if (options.variation) {
             body['subseed'] = -1
@@ -67,7 +74,8 @@ export default class StabledAPI {
             for (const image of data.images) {
                 const seed = info.all_seeds.shift() ?? ''
                 const subseed = info.all_subseeds.shift() ?? ''
-                const serial = Utils.getSerial(seed, subseed, ++this._generatedImageCount)
+                const subseedStrength = info.subseed_strength
+                const serial = Utils.getSerial(seed, subseedStrength > 0 ? subseed : '', ++this._generatedImageCount)
                 imageDic[serial] = image
             }
             return imageDic

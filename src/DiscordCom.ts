@@ -3,6 +3,7 @@ import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
 import {IStringDictionary} from './Utils.js'
+import {MessageDerivedData} from './Tasks.js'
 
 export default class DiscordCom {
     private static _rest: REST
@@ -80,10 +81,16 @@ export default class DiscordCom {
                     .setDescription('Censor the generated images.')
                     .setRequired(false)
             })
+
+        const promptCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_PROMPT)
+            .setDescription('Launch the prompt editing interface.')
+
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
-                    genCommand.toJSON()
+                    genCommand.toJSON(),
+                    promptCommand.toJSON()
                 ]
             })
         } catch (e) {
@@ -163,8 +170,11 @@ export default class DiscordCom {
         if (options.hires) {
             row1.addComponents(deleteButton)
             components.push(row1)
-        } else if (options.variations || options.details) {
+        } else if(options.details) {
             row1.addComponents(deleteButton, infoButton, upscaleButton)
+            components.push(row1)
+        } else if (options.variations) {
+            row1.addComponents(deleteButton, infoButton, upscaleButton, detailButton)
             components.push(row1)
         } else {
             row1.addComponents(deleteButton, redoButton, editButton, upscaleButton)
@@ -285,7 +295,7 @@ export default class DiscordCom {
         const textInput = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_PROMPT)
             .setLabel("The positive prompt, include elements.")
-            .setValue(options.prompt)
+            .setValue(options.data.prompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         const promptRow = new ActionRowBuilder<TextInputBuilder>()
@@ -293,15 +303,32 @@ export default class DiscordCom {
         const textInput2 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_NEGATIVE_PROMPT)
             .setLabel("The negative prompt, exclude elements.")
-            .setValue(options.negativePrompt)
+            .setValue(options.data.negativePrompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false)
         const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput2)
+        const textInput3 = new TextInputBuilder()
+            .setCustomId(Constants.INPUT_NEW_SIZE)
+            .setLabel("The size of the generated images.")
+            .setValue(options.data.size)
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+        const promptRow3 = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput3)
+        const textInput4 = new TextInputBuilder()
+            .setCustomId(Constants.INPUT_NEW_COUNT)
+            .setLabel("The number of images to generate, 1-10.")
+            .setValue(options.data.count.toString())
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+        const promptRow4 = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput4)
+
         const modal = new ModalBuilder()
-            .setCustomId(`${options.customIdPrefix}#${options.index}`)
+            .setCustomId(options.customIdPrefix+(typeof options.index == 'number' ? `#${options.index}` : ''))
             .setTitle(options.title)
-            .addComponents(promptRow, promptRow2)
+            .addComponents(promptRow, promptRow2, promptRow3, promptRow4)
         await options.interaction.showModal(modal)
     }
 
@@ -386,8 +413,7 @@ export class PromptUserOptions {
         public title: string = '',
         public interaction: ButtonInteraction | CommandInteraction | undefined,
         public index: string = '',
-        public prompt: string = 'random dirt',
-        public negativePrompt: string = ''
+        public data: MessageDerivedData | undefined
     ) {
     }
 }

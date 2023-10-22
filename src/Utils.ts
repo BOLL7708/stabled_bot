@@ -1,16 +1,26 @@
 import Config from './Config.js'
 
 export default class Utils {
-    static calculateWidthHeightForAspectRatio(aspectRatioStr: string): string {
-        const aspectRatioPair = aspectRatioStr.split(':')
-        const aspectRatio = Number(aspectRatioPair[0]) / Number(aspectRatioPair[1])
+    static normalizeSize(arbitrarySize: string): string {
+        const DEFAULT = '512x512'
+        // Parse values
+        const sizePair = arbitrarySize.split(/\D/)
+        if(!sizePair || sizePair.length < 2) return DEFAULT
+        const sizeWidth = Number(sizePair[0])
+        const sizeHeight = Number(sizePair[1])
+        if(isNaN(sizeWidth) || isNaN(sizeHeight) || sizeWidth == 0 || sizeHeight == 0) return DEFAULT
+
+        // Output normalized size
+        const aspectRatio = sizeWidth/sizeHeight
         const width = Math.round(Math.sqrt(aspectRatio * (512 * 512)))
         const height = Math.round(width / aspectRatio)
         return `${width}x${height}`
     }
 
     static getSerial(seed: number | string, subseed: number | string, count: number | string): string {
-        return `${Date.now()}${count}-${seed}-${subseed}`
+        const arr = [`${Date.now()}${count}`, seed.toString()]
+        if(!!subseed) arr.push(subseed.toString())
+        return arr.join('-')
     }
 
     static async progressBarMessage(value: number): Promise<string> {

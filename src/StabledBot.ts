@@ -104,8 +104,7 @@ export default class StabledBot {
                             "Random Seed",
                             interaction,
                             nextIndex.toString(),
-                            data.prompt,
-                            data.negativePrompt
+                            data
                         ))
                         break
                     }
@@ -117,8 +116,7 @@ export default class StabledBot {
                             "Reused Seed",
                             interaction,
                             nextIndex.toString(),
-                            data.prompt,
-                            data.negativePrompt
+                            data
                         ))
                         break
                     }
@@ -208,6 +206,7 @@ export default class StabledBot {
                         const buttonData = this.getDataForButton(payload)
                         const useData = buttonData.data ?? data
                         if (useData) {
+                            const seed = useData.seeds[buttonData.buttonIndex]
                             await runGen(
                                 'Here are more details ',
                                 useData.prompt,
@@ -216,7 +215,7 @@ export default class StabledBot {
                                 1,
                                 useData.spoiler,
                                 interaction,
-                                useData.seeds[buttonData.buttonIndex],
+                                seed,
                                 false,
                                 false,
                                 true
@@ -274,8 +273,18 @@ export default class StabledBot {
                         const countValue = interaction.options.get(Constants.OPTION_COUNT)?.value
                         const count = countValue ? Number(countValue) : 4
                         const spoiler = !!interaction.options.get(Constants.OPTION_SPOILER)?.value
-                        const size = Utils.calculateWidthHeightForAspectRatio(aspectRatio)
+                        const size = Utils.normalizeSize(aspectRatio)
                         await runGen('Here you go', prompt, promptNegative, size, count, spoiler, interaction)
+                        break
+                    }
+                    case Constants.COMMAND_PROMPT: {
+                        await DiscordCom.promptUser(new PromptUserOptions(
+                            Constants.PROMPT_PROMPT,
+                            'New Seed',
+                            interaction,
+                            '',
+                            new MessageDerivedData()
+                        ))
                         break
                     }
                     default: {
@@ -290,36 +299,67 @@ export default class StabledBot {
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
                         const data = this.getCachedData(index)
-                        if (data) {
-                            const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
-                            const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                            await runGen('Here is the remix', newPrompt, newPromptNegative, data.size, data.count, data.spoiler, interaction, data.seeds.shift())
-                        } else {
-                            try {
-                                interaction.editReply({content: 'Failed to get cached data :('})
-                            } catch (e) {
-                                console.error(e)
-                            }
-                        }
+                        const promptData = getPromptValues(interaction)
+                        await runGen(
+                            'Here is the remix',
+                            promptData.prompt,
+                            promptData.promptNegative,
+                            promptData.size,
+                            promptData.count,
+                            data?.spoiler ?? false,
+                            interaction,
+                            data.seeds.shift()
+                        )
                         break
                     }
                     case Constants.PROMPT_REDO: {
                         const data = this.getCachedData(index)
-                        if (data) {
-                            const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
-                            const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                            await runGen('Here you go again', newPrompt, newPromptNegative, data.size, data.count, false, interaction)
-                        } else {
-                            try {
-                                interaction.editReply({content: 'Failed to get cached data :('})
-                            } catch (e) {
-                                console.error(e)
-                            }
-                        }
+                        const promptData = getPromptValues(interaction)
+                        await runGen(
+                            'Here you go again',
+                            promptData.prompt,
+                            promptData.promptNegative,
+                            promptData.size,
+                            promptData.count,
+                            data?.spoiler ?? false,
+                            interaction
+                        )
+                        break
+                    }
+                    case Constants.PROMPT_PROMPT: {
+                        const promptData = getPromptValues(interaction)
+                        await runGen(
+                            'Here it is',
+                            promptData.prompt,
+                            promptData.promptNegative,
+                            promptData.size,
+                            promptData.count,
+                            false,
+                            interaction
+                        )
+                        break
                     }
                 }
             }
         })
+
+        function getPromptValues(interaction: ModalSubmitInteraction): IPromptData {
+            const countValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_COUNT) ?? '4'
+            let count = Number(countValue)
+            if(isNaN(count)) count = 4
+            count = Math.min(Math.max(count, 1), 10)
+
+            const sizeValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_SIZE) ?? '1:1'
+            const size = Utils.normalizeSize(sizeValue)
+
+            return {
+                prompt: interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random trash',
+                promptNegative: interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? '',
+                size,
+                count
+            }
+
+        }
 
         async function runGen(
             messageStart: string,
@@ -434,4 +474,11 @@ export default class StabledBot {
             data: cacheIndex ? this.getCachedData(cacheIndex, false) : undefined
         }
     }
+}
+
+interface IPromptData {
+    prompt: string
+    promptNegative: string
+    size: string
+    count: number
 }

@@ -65,8 +65,8 @@ export default class Tasks {
         const idle = progress.state.job_count <= 0
         const newStatus = idle ? 'online' : 'dnd'
         const newActivity = idle
-            ? '/gen 💤'
-            : `/gen ${this._currentTick ? '⌛' : '⏳'}:${Math.round(100 * progress.progress)}% 📋:${queueCount}`
+            ? 'Idle 💤'
+            : `Work ${this._currentTick ? '⌛' : '⏳'}:${Math.round(100 * progress.progress)}% 📋:${queueCount}`
         if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
             this._currentStatus = newStatus
             this._currentActivity = newActivity
@@ -117,8 +117,8 @@ export class MessageDerivedData {
     public userId: string = ''
     public prompt: string = ''
     public negativePrompt: string = ''
-    public count: number = 0
-    public size: string = ''
+    public count: number = 4
+    public size: string = '512x512'
     public spoiler: boolean = false
     public seeds: ISeed[] = []
 }
