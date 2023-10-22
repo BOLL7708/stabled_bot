@@ -2,6 +2,7 @@ import axios, {AxiosInstance, AxiosResponse} from 'axios'
 import {MessageReference} from './DiscordCom.js'
 import Config from './Config.js'
 import Utils, {IStringDictionary} from './Utils.js'
+import {ISeed} from './DiscordUtils.js'
 
 export default class StabledAPI {
     private static _api: AxiosInstance
@@ -21,12 +22,13 @@ export default class StabledAPI {
             })
         }
     }
+
     // endregion
 
     // region Queued Methods
     static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
         await this.ensureAPI()
-        const {width, height} = Utils.calculateWidthHeightForAspectRatio(options.aspectRatio)
+        const [width, height] = options.size.split('x')
 
         const body = {
             prompt: options.prompt,
@@ -35,7 +37,8 @@ export default class StabledAPI {
             steps: options.details ? 80 : 20,
             width,
             height,
-            seed: options.predefinedSeed ?? -1
+            seed: options.predefinedSeed?.seed ?? -1,
+            subseed: options.predefinedSeed?.variantSeed ?? -1
         }
         if (options.variation) {
             body['subseed'] = -1
@@ -59,14 +62,13 @@ export default class StabledAPI {
 
         if (response?.data) {
             const data = response.data
-            const info = JSON.parse(data.info) as { seed: number, all_seeds: number[] } // TODO: Might want the full interface
+            const info = JSON.parse(data.info) as IStabledResponseInfo
             const imageDic: IStringDictionary = {}
             for (const image of data.images) {
-                const seed = info.all_seeds.shift()
-                if (seed) {
-                    const serial = Utils.getSerial(seed, ++this._generatedImageCount)
-                    imageDic[serial] = image
-                }
+                const seed = info.all_seeds.shift() ?? ''
+                const subseed = info.all_subseeds.shift() ?? ''
+                const serial = Utils.getSerial(seed, subseed, ++this._generatedImageCount)
+                imageDic[serial] = image
             }
             return imageDic
         } else {
@@ -100,7 +102,7 @@ export default class StabledAPI {
     }
 
     // region Non-queued Methods
-    static async getProgress(): Promise<IProgressResponse|undefined> {
+    static async getProgress(): Promise<IProgressResponse | undefined> {
         await this.ensureAPI()
         let progressResponse: AxiosResponse<IProgressResponse>
         try {
@@ -123,6 +125,7 @@ export default class StabledAPI {
             console.error(e)
         }
     }
+
     // endregion
 
     // region Queue Handling
@@ -148,6 +151,7 @@ export default class StabledAPI {
         this._queue.clear()
         this._queueIndex = 0
     }
+
     // endregion
 }
 
@@ -157,15 +161,16 @@ export class GenerateImagesOptions {
         public reference: MessageReference,
         public prompt: string = 'random garbage',
         public negativePrompt: string = '',
-        public aspectRatio: string = '1:1',
+        public size: string = '512x512',
         public count: number = 4,
-        public predefinedSeed: string | undefined,
+        public predefinedSeed: ISeed | undefined,
         public variation: boolean | undefined,
         public hires: boolean | undefined,
         public details: boolean | undefined
     ) {
     }
 }
+
 // endregion
 
 // region Interfaces
@@ -226,6 +231,40 @@ interface IStabledResponse {
     info: string
 }
 
+export interface IStabledResponseInfo {
+    prompt: string
+    all_prompts: string[]
+    negative_prompt: string
+    all_negative_prompts: string[]
+    seed: number
+    all_seeds: number[]
+    subseed: number[]
+    all_subseeds: number[]
+    subseed_strength: number
+    width: number
+    height: number
+    sampler_name: string
+    cfg_scale: number
+    steps: number
+    batch_size: number
+    restore_faces: boolean
+    face_restoration_model: string
+    sd_model_name: string
+    sd_model_hash: string
+    sd_vae_name: any
+    sd_vae_hash: any
+    seed_resize_from_w: number
+    seed_resize_from_h: number
+    denoising_strength: number
+    extra_generation_params: object
+    index_of_first_image: number
+    infotexts: string[]
+    styles: any[]
+    job_timestamp: string
+    clip_skip: number
+    is_using_inpainting_conditioning: boolean
+}
+
 interface IProgressResponse {
     progress: number
     eta_relative: number
@@ -249,4 +288,5 @@ export interface IPNGInfoResponse {
         parameters: string
     }
 }
+
 // endregion

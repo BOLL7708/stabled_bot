@@ -7,7 +7,7 @@ import {CronJob} from 'cron'
 import Utils, {Color} from './Utils.js'
 import DiscordCom, {MessageReference, PromptUserOptions, SendImagesOptions} from './DiscordCom.js'
 import StabledAPI, {GenerateImagesOptions} from './StabledAPI.js'
-import DiscordUtils, {IAttachment} from './DiscordUtils.js'
+import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
 
 export default class StabledBot {
     private _config: IConfig
@@ -76,14 +76,14 @@ export default class StabledBot {
             if (interaction.isButton()) {
                 Utils.log('Button triggered', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, payload] = interaction.customId.split('#')
-                const data = await Tasks.getDataFromMessage(interaction.message)
+                const data = await Tasks.getDataForMessage(interaction.message)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
                         const messageResult = await DiscordUtils.getMessageForInteraction(interaction)
                         if (messageResult) {
                             if (
                                 messageResult.channel instanceof DMChannel // DMs are always deletable
-                                || data.user == interaction.user.username // Limit to creator in public channels
+                                || data.userId == interaction.user.id // Limit to creator in public channels
                             ) {
                                 await messageResult.message.delete()
                                 await interaction.deferUpdate()
@@ -136,7 +136,7 @@ export default class StabledBot {
                                 'Here are the variations ',
                                 cachedData.prompt,
                                 cachedData.negativePrompt,
-                                cachedData.aspectRatio,
+                                cachedData.size,
                                 4,
                                 cachedData.spoiler,
                                 interaction,
@@ -209,7 +209,7 @@ export default class StabledBot {
                                 'Here are more details ',
                                 cachedData.prompt,
                                 cachedData.negativePrompt,
-                                cachedData.aspectRatio,
+                                cachedData.size,
                                 1,
                                 cachedData.spoiler,
                                 interaction,
@@ -236,11 +236,9 @@ export default class StabledBot {
                         }
                         if (attachment) {
                             const pngInfo = await StabledAPI.getPNGInfo(attachment.data)
-                            const pngInfoObj = Utils.parsePNGInfo(pngInfo?.info)
-                            // TODO: Make it pretty
                             await interaction.reply({
                                 ephemeral: true,
-                                content: '```json\n' + JSON.stringify(pngInfoObj, null, 2) + '```'
+                                content: '```csv\n' + pngInfo.info + '```'
                             })
                         }
                         break
@@ -255,7 +253,8 @@ export default class StabledBot {
                         const countValue = interaction.options.get(Constants.OPTION_COUNT)?.value
                         const count = countValue ? Number(countValue) : 4
                         const spoiler = !!interaction.options.get(Constants.OPTION_SPOILER)?.value
-                        await runGen('Here you go', prompt, promptNegative, aspectRatio, count, spoiler, interaction)
+                        const size = Utils.calculateWidthHeightForAspectRatio(aspectRatio)
+                        await runGen('Here you go', prompt, promptNegative, size, count, spoiler, interaction)
                         break
                     }
                     default: {
@@ -273,7 +272,7 @@ export default class StabledBot {
                         if (data) {
                             const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random dirt'
                             const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                            await runGen('Here is the remix', newPrompt, newPromptNegative, data.aspectRatio, data.count, data.spoiler, interaction, data.seeds.shift())
+                            await runGen('Here is the remix', newPrompt, newPromptNegative, data.size, data.count, data.spoiler, interaction, data.seeds.shift())
                         } else {
                             try {
                                 interaction.editReply({content: 'Failed to get cached data :('})
@@ -288,7 +287,7 @@ export default class StabledBot {
                         if (data) {
                             const newPrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random waste'
                             const newPromptNegative = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
-                            await runGen('Here you go again', newPrompt, newPromptNegative, data.aspectRatio, data.count, false, interaction)
+                            await runGen('Here you go again', newPrompt, newPromptNegative, data.size, data.count, false, interaction)
                         } else {
                             try {
                                 interaction.editReply({content: 'Failed to get cached data :('})
@@ -305,11 +304,11 @@ export default class StabledBot {
             messageStart: string,
             prompt: string,
             negativePrompt: string,
-            aspectRatio: string,
+            size: string,
             count: number,
             spoiler: boolean,
             interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
-            seed?: string,
+            seed?: ISeed,
             variations?: boolean,
             hires?: boolean,
             details?: boolean
@@ -324,7 +323,7 @@ export default class StabledBot {
                     reference,
                     prompt,
                     negativePrompt,
-                    aspectRatio,
+                    size,
                     count,
                     seed,
                     variations,
@@ -339,7 +338,7 @@ export default class StabledBot {
                     const reply = await DiscordCom.sendImagesAsReply(client, new SendImagesOptions(
                         prompt,
                         negativePrompt,
-                        aspectRatio,
+                        size,
                         count,
                         spoiler,
                         images,

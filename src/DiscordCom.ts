@@ -90,6 +90,7 @@ export default class DiscordCom {
             console.error(e)
         }
     }
+
     // endregion
 
     // region Send
@@ -171,32 +172,12 @@ export default class DiscordCom {
             components.push(row1, row2)
         }
 
-        // Embeds
-        const embeds: (APIEmbed | JSONEncodable<APIEmbed>)[] = []
-        if (options.hires || options.variations) {
-            embeds.push({
-                fields: [{name: Constants.FIELD_USER, value: options.reference.userName, inline: true}] // TODO: Mention in message contents
-            })
-        } else {
-            embeds.push({
-                fields: [
-                    {name: Constants.FIELD_PROMPT, value: options.prompt, inline: false}, // TODO: In PNG Info
-                    {name: Constants.FIELD_NEGATIVE_PROMPT, value: options.negativePrompt, inline: true}, // TODO: In PNG Info
-                    {name: Constants.FIELD_USER, value: options.reference.userName, inline: true}, // TODO: Mention in message contents
-                    {name: Constants.FIELD_COUNT, value: options.count.toString(), inline: true}, // TODO: Number of attachments
-                    {name: Constants.FIELD_ASPECT_RATIO, value: options.aspectRatio, inline: true}, // TODO: Size in PNG Info
-                    {name: Constants.FIELD_SPOILER, value: options.spoiler.toString(), inline: true} // TODO: Flag on attachment
-                ]
-            })
-        }
-
         // Reply
         try {
             return await message.edit({
                 content: options.message,
                 files: attachments,
-                components,
-                embeds
+                components
             })
         } catch (e) {
             console.error(e)
@@ -296,6 +277,7 @@ export default class DiscordCom {
             console.error('Unable to show submenu:', e.message)
         }
     }
+
     // endregion
 
     // region Prompts
@@ -322,8 +304,10 @@ export default class DiscordCom {
             .addComponents(promptRow, promptRow2)
         await options.interaction.showModal(modal)
     }
+
     // endregion
 }
+
 // region Sub Classes
 export class MessageReference {
     constructor(
@@ -375,6 +359,7 @@ export class MessageReference {
         return `${this.guildName ? this.guildName + ' > ' : 'DM > '}${this.channelName ? this.channelName + ' > ' : ''}${this.userName}`
     }
 }
+
 // endregion
 
 // region Data Classes
@@ -382,7 +367,7 @@ export class SendImagesOptions {
     constructor(
         public prompt: string = 'random waste',
         public negativePrompt: string = '',
-        public aspectRatio: string = '1:1',
+        public size: string = '512x512',
         public count: number = 4,
         public spoiler: boolean = false,
         public images: IStringDictionary = {},
@@ -406,4 +391,5 @@ export class PromptUserOptions {
     ) {
     }
 }
+
 // endregion

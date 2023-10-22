@@ -1,9 +1,9 @@
-import {ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalSubmitInteraction, TextChannel, TextInputStyle} from 'discord.js'
+import {ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalSubmitInteraction, TextChannel, TextInputStyle, User} from 'discord.js'
 import Constants from './Constants.js'
 import Utils, {IStringDictionary} from './Utils.js'
 import {MessageReference} from './DiscordCom.js'
 import StabledAPI from './StabledAPI.js'
-import DiscordUtils from './DiscordUtils.js'
+import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
 
 export default class Tasks {
     static async getAttachmentAndUpscale(client: Client, reference: MessageReference, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
@@ -15,47 +15,30 @@ export default class Tasks {
         return await StabledAPI.upscaleImageData(reference, attachment.data, upscaleFactor, fileName)
     }
 
-    /**
-     * @deprecated Should be replaced with getting data from the message properties and PNGInfo
-     * @param message
-     */
-    static async getDataFromMessage(message: Message<boolean>): Promise<MessageDerivedData> {
+    static async getDataForMessage(message: Message): Promise<MessageDerivedData> {
         const data = new MessageDerivedData()
         data.messageId = message.id
-        for (const embed of message.embeds) {
-            if (embed.fields.length) {
-                const fields = embed.fields
-                if (fields) {
-                    for (const field of fields) {
-                        switch (field.name) {
-                            case Constants.FIELD_USER:
-                                data.user = field.value;
-                                break
-                            case Constants.FIELD_PROMPT:
-                                data.prompt = field.value;
-                                break
-                            case Constants.FIELD_NEGATIVE_PROMPT:
-                                data.negativePrompt = field.value;
-                                break
-                            case Constants.FIELD_COUNT:
-                                data.count = parseInt(field.value);
-                                break
-                            case Constants.FIELD_ASPECT_RATIO:
-                                data.aspectRatio = field.value;
-                                break
-                            case Constants.FIELD_SPOILER:
-                                data.spoiler = field.value.toLowerCase() == 'true';
-                                break
-                        }
-                    }
-                }
-            }
+        try { // It throws an exception if we try to access this in a DM.
+            data.userId = message.mentions.members.first()?.user?.id ?? ''
+        } catch (e) {
+            // console.error('Could not get user id:', e.message)
         }
-        for (const attachment of message.attachments) {
-            const attachmentData = attachment.pop() as Attachment
-            if (attachmentData.name.endsWith('.png')) {
-                const fileName = attachmentData.name.replace('.png', '')
-                data.seeds.push(fileName.split('-').pop()) // TODO: Possible support more parts here later
+        data.count = message.attachments.size
+        data.seeds = DiscordUtils.getAttachmentSeedData(message.attachments.values())
+        let attachment: IAttachment
+        try {
+            attachment = await DiscordUtils.getAttachmentFromMessage(message, 0)
+        } catch (e) {
+            // console.error('Attachment error:', e.message)
+        }
+        if (attachment) {
+            data.spoiler = attachment.spoiler
+            const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
+            const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
+            if(pngInfo) {
+                data.prompt = pngInfo.prompt
+                data.negativePrompt = pngInfo.negativePrompt
+                data.size = pngInfo.size
             }
         }
         return data
@@ -131,14 +114,13 @@ export default class Tasks {
 
 export class MessageDerivedData {
     public messageId: string = ''
-    public user: string = ''
+    public userId: string = ''
     public prompt: string = ''
     public negativePrompt: string = ''
     public count: number = 0
-    public aspectRatio: string = ''
+    public size: string = ''
     public spoiler: boolean = false
-    public seeds: string[] = []
-    public subSeeds: string[] = []
+    public seeds: ISeed[] = []
 }
 
 export type TChannelType = TextChannel | DMChannel

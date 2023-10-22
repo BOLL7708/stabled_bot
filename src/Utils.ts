@@ -1,16 +1,16 @@
 import Config from './Config.js'
 
 export default class Utils {
-    static calculateWidthHeightForAspectRatio(aspectRatioStr: string) {
+    static calculateWidthHeightForAspectRatio(aspectRatioStr: string): string {
         const aspectRatioPair = aspectRatioStr.split(':')
         const aspectRatio = Number(aspectRatioPair[0]) / Number(aspectRatioPair[1])
         const width = Math.round(Math.sqrt(aspectRatio * (512 * 512)))
         const height = Math.round(width / aspectRatio)
-        return {width, height}
+        return `${width}x${height}`
     }
 
-    static getSerial(seed: number | string, count: number | string): string {
-        return `${Date.now()}${count}-${seed}`
+    static getSerial(seed: number | string, subseed: number | string, count: number | string): string {
+        return `${Date.now()}${count}-${seed}-${subseed}`
     }
 
     static async progressBarMessage(value: number): Promise<string> {
@@ -67,6 +67,8 @@ export class PngInfo {
     model: string = ''
     denoisingStrength: string = ''
     version: string = ''
+    variationSeed: string = ''
+    variationSeedStrength: string = ''
     // TODO: Add more fields
 }
 
