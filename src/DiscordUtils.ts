@@ -12,6 +12,7 @@ export default class DiscordUtils {
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(true)
     }
+
     // endregion
 
     // region Getters
@@ -19,7 +20,7 @@ export default class DiscordUtils {
      * TODO: WORK IN PROGRESS
      * @param message
      */
-    static getInfoFromMessage(message: Message): MessageInfo  {
+    static getInfoFromMessage(message: Message): MessageInfo {
         const info = new MessageInfo()
         const mention = message.mentions.members.first()
         const count = message.attachments.size
@@ -30,7 +31,7 @@ export default class DiscordUtils {
 
     static async getAttachmentFromMessage(message: Message, index: number | string): Promise<IAttachment> {
         const attachments = Array.from(message.attachments.values())
-        if(attachments.length == 0) throw('No attachments found.')
+        if (attachments.length == 0) throw('No attachments found.')
         const attachment = attachments.at(Number(index))
         if (!attachment) throw('Could not get attachment.')
         const attachmentResponse = await axios.get(attachment.url, {responseType: 'arraybuffer'})
@@ -57,7 +58,7 @@ export default class DiscordUtils {
         return channel
     }
 
-    static async getMessageForInteraction(interaction: ButtonInteraction | ModalSubmitInteraction): Promise<IMessageForInteraction | undefined> {
+    static async getMessageFromInteraction(interaction: ButtonInteraction | ModalSubmitInteraction): Promise<IMessageForInteraction | undefined> {
         const channel = await this.getChannelFromInteraction(interaction)
         const message = await channel.messages.fetch(interaction.message.id)
         if (!message) return undefined
@@ -66,15 +67,22 @@ export default class DiscordUtils {
             channel: channel
         }
     }
-    // endregion
-    static getAttachmentSeedData(attachments:Iterable<Attachment>): ISeed[] {
+
+    static async getMessageWithIdFromInteraction(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction, messageId: string): Promise<Message | undefined> {
+        const channel = await this.getChannelFromInteraction(interaction)
+        return await channel.messages.fetch(messageId)
+    }
+
+    static getAttachmentSeedData(attachments: Iterable<Attachment>): ISeed[] {
         const seeds: ISeed[] = []
-        for(const attachment of attachments) {
+        for (const attachment of attachments) {
             const [differentiator, seed, variantSeed] = attachment.name.replace('.png', '').split('-')
-            seeds.push({ seed: seed ?? '-1', variantSeed: variantSeed ?? '-1' })
+            seeds.push({seed: seed ?? '-1', variantSeed: variantSeed ?? '-1'})
         }
         return seeds
     }
+
+    // endregion
 }
 
 // region Data Classes
@@ -82,6 +90,7 @@ export class MessageInfo {
     userName: string = ''
     count: number = 0
 }
+
 // endregion
 
 // region Interfaces
@@ -89,9 +98,11 @@ export interface ISeed {
     seed: string
     variantSeed: string
 }
+
 export interface IAttachment {
     name: string
     spoiler: boolean
     data: string
 }
+
 // endregion

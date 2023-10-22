@@ -1,5 +1,5 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, ModalSubmitInteraction} from 'discord.js'
+import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, Message, ModalSubmitInteraction} from 'discord.js'
 import Tasks, {MessageDerivedData} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
@@ -18,9 +18,9 @@ export default class StabledBot {
         return ++this._interactionIndex
     }
 
-    private getCachedData(index: number | string): MessageDerivedData | undefined {
+    private getCachedData(index: number | string, deleteCache: boolean = true): MessageDerivedData | undefined {
         const data = this._dataCache.get(Number(index))
-        if (data) this._dataCache.delete(Number(index))
+        if (data && deleteCache) this._dataCache.delete(Number(index))
         return data
     }
 
@@ -57,7 +57,7 @@ export default class StabledBot {
             Utils.log('Ready, logged in as', c.user.tag, c.user.username)
             loadProgressJob.start()
             try {
-                if(client.user.username != this._config.botUserName) {
+                if (client.user.username != this._config.botUserName) {
                     await c.user.setUsername(this._config.botUserName)
                 }
             } catch (e) {
@@ -79,7 +79,7 @@ export default class StabledBot {
                 const data = await Tasks.getDataForMessage(interaction.message)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
-                        const messageResult = await DiscordUtils.getMessageForInteraction(interaction)
+                        const messageResult = await DiscordUtils.getMessageFromInteraction(interaction)
                         if (messageResult) {
                             if (
                                 messageResult.channel instanceof DMChannel // DMs are always deletable
@@ -123,54 +123,57 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_VARY: {
-                        const nextIndex = this.getNextInteractionIndex()
-                        this._dataCache.set(nextIndex, data)
-                        await DiscordCom.showButtons(Constants.BUTTON_VARIANT, 'Pick which image to make variations for:', nextIndex, data.seeds.length, interaction)
-                        break
+                        if (data.count > 1) {
+                            const nextIndex = this.getNextInteractionIndex()
+                            this._dataCache.set(nextIndex, data)
+                            await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.count, interaction)
+                            break
+                        }
                     }
-                    case Constants.BUTTON_VARIANT: {
-                        const [cacheIndex, buttonIndex] = payload.split(':')
-                        const cachedData = this._dataCache.get(Number(cacheIndex))
-                        if (cachedData) {
+                    // @allowFallthrough
+                    case Constants.BUTTON_VARY_CHOICE: {
+                        const buttonData = this.getDataForButton(payload)
+                        const useData = buttonData.data ?? data
+                        if (useData) {
                             await runGen(
                                 'Here are the variations ',
-                                cachedData.prompt,
-                                cachedData.negativePrompt,
-                                cachedData.size,
+                                useData.prompt,
+                                useData.negativePrompt,
+                                useData.size,
                                 4,
-                                cachedData.spoiler,
+                                useData.spoiler,
                                 interaction,
-                                cachedData.seeds[buttonIndex],
+                                useData.seeds[buttonData.buttonIndex],
                                 true
                             )
                         } else {
-                            await interaction.reply({
-                                ephemeral: true,
-                                content: 'The menu has expired, dismiss it and relaunch.'
-                            })
+                            await StabledBot.replyDataError(interaction)
                         }
                         break
                     }
                     case Constants.BUTTON_UPSCALE: {
-                        const nextIndex = this.getNextInteractionIndex()
-                        this._dataCache.set(nextIndex, data)
-                        await DiscordCom.showButtons(Constants.BUTTON_UPSCALING, 'Pick which image to up-scale:', nextIndex, data.seeds.length, interaction)
-                        break
+                        if (data.count > 1) {
+                            const nextIndex = this.getNextInteractionIndex()
+                            this._dataCache.set(nextIndex, data)
+                            await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.count, interaction)
+                            break
+                        }
                     }
-                    case Constants.BUTTON_UPSCALING: {
-                        const [cacheIndex, buttonIndex] = payload.split(':')
-                        const cachedData = this._dataCache.get(Number(cacheIndex))
-                        if (cachedData) {
+                    // @allowFallthrough
+                    case Constants.BUTTON_UPSCALE_CHOICE: {
+                        const buttonData = this.getDataForButton(payload)
+                        const useData = buttonData.data ?? data
+                        if (useData) {
                             const reference = await DiscordCom.replyQueuedAndGetReference(interaction)
                             try {
                                 Tasks.updateQueues()
-                                const images = await Tasks.getAttachmentAndUpscale(client, reference, cachedData.messageId, buttonIndex)
+                                const images = await Tasks.getAttachmentAndUpscale(client, reference, useData.messageId, buttonData.buttonIndex)
                                 Tasks.updateQueues()
                                 const user = await reference.getUser(client)
                                 if (Object.keys(images).length) {
                                     const options = new SendImagesOptions(
                                         '', '', '', 1,
-                                        cachedData.spoiler,
+                                        useData.spoiler,
                                         images,
                                         reference,
                                         `Here is the up-scaled image ${user}!`,
@@ -188,57 +191,72 @@ export default class StabledBot {
                                 console.error(e)
                             }
                         } else {
-                            await interaction.reply({
-                                ephemeral: true,
-                                content: 'The menu has expired, dismiss it and relaunch.'
-                            })
+                            await StabledBot.replyDataError(interaction)
                         }
                         break
                     }
                     case Constants.BUTTON_DETAIL: {
-                        const nextIndex = this.getNextInteractionIndex()
-                        this._dataCache.set(nextIndex, data)
-                        await DiscordCom.showButtons(Constants.BUTTON_DETAILING, 'Pick which image to generate more details for:', nextIndex, data.seeds.length, interaction)
-                        break
+                        if (data.count > 1) {
+                            const nextIndex = this.getNextInteractionIndex()
+                            this._dataCache.set(nextIndex, data)
+                            await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.count, interaction)
+                            break
+                        }
                     }
-                    case Constants.BUTTON_DETAILING: {
-                        const [cacheIndex, buttonIndex] = payload.split(':')
-                        const cachedData = this._dataCache.get(Number(cacheIndex))
-                        if (cachedData) {
+                    // @allowFallthrough
+                    case Constants.BUTTON_DETAIL_CHOICE: {
+                        const buttonData = this.getDataForButton(payload)
+                        const useData = buttonData.data ?? data
+                        if (useData) {
                             await runGen(
                                 'Here are more details ',
-                                cachedData.prompt,
-                                cachedData.negativePrompt,
-                                cachedData.size,
+                                useData.prompt,
+                                useData.negativePrompt,
+                                useData.size,
                                 1,
-                                cachedData.spoiler,
+                                useData.spoiler,
                                 interaction,
-                                cachedData.seeds[buttonIndex],
-                                // TODO: Add subseed support
+                                useData.seeds[buttonData.buttonIndex],
                                 false,
                                 false,
                                 true
                             )
                         } else {
-                            await interaction.reply({
-                                ephemeral: true,
-                                content: 'The menu has expired, dismiss it and relaunch.'
-                            })
+                            await StabledBot.replyDataError(interaction)
                         }
                         break
                     }
                     case Constants.BUTTON_INFO: {
+                        if (data.count > 1) {
+                            const nextIndex = this.getNextInteractionIndex()
+                            this._dataCache.set(nextIndex, data)
+                            await DiscordCom.showButtons(Constants.BUTTON_INFO_CHOICE, 'Pick which image to get information for:', nextIndex, data.count, interaction)
+                            break
+                        }
+                    }
+                    // @allowFallthrough
+                    case Constants.BUTTON_INFO_CHOICE: {
+                        const messageData = await this.getMessageForButton(interaction, payload)
                         let attachment: IAttachment
                         try {
-                            attachment = await DiscordUtils.getAttachmentFromMessage(interaction.message, 0)
+                            attachment = await DiscordUtils.getAttachmentFromMessage(messageData.message, messageData.buttonIndex)
                         } catch (e) {
                             console.error(e.message)
                         }
                         if (attachment) {
-                            const pngInfo = await StabledAPI.getPNGInfo(attachment.data)
+                            const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
+                            const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
+                            const content = [
+                                '```csv\n' + pngInfoResponse.info + '```'
+                            ]
                             await interaction.reply({
                                 ephemeral: true,
-                                content: '```csv\n' + pngInfo.info + '```'
+                                content: content.join('\n')
+                            })
+                        } else {
+                            await interaction.reply({
+                                ephemeral: true,
+                                content: 'Was unable to get attachment and load the data for it :('
                             })
                         }
                         break
@@ -366,6 +384,51 @@ export default class StabledBot {
             })
         } catch (e) {
             console.error(e)
+        }
+    }
+
+    /**
+     * If there was no cache to load we respond with this error message.
+     * @param interaction
+     * @private
+     */
+    private static async replyDataError(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
+        await interaction.reply({
+            ephemeral: true,
+            content: 'The menu has expired, dismiss it and relaunch.'
+        })
+    }
+
+    /**
+     * This will get a cached message if a submenu button was pressed, or the interaction message if a main button was pressed.
+     * @param interaction
+     * @param payload
+     * @private
+     */
+    private async getMessageForButton(interaction: ButtonInteraction, payload: string): Promise<{ buttonIndex: number, message: Message | undefined }> {
+        let messageId: string
+        let buttonIndex: string
+        let cacheIndex: string
+        if (payload) {
+            [cacheIndex, buttonIndex] = payload.split(':')
+            const cachedData = this._dataCache.get(Number(cacheIndex))
+            messageId = cachedData?.messageId
+        } else {
+            messageId = interaction.message.id
+        }
+        const numberButtonIndex = Number(buttonIndex)
+        return {
+            buttonIndex: isNaN(numberButtonIndex) ? 0 : numberButtonIndex,
+            message: await DiscordUtils.getMessageWithIdFromInteraction(interaction, messageId)
+        }
+    }
+
+    private getDataForButton(payload: string | undefined): { buttonIndex: number, data: MessageDerivedData | undefined } {
+        const [cacheIndex, buttonIndex] = payload?.split(':') ?? []
+        const numberButtonIndex = Number(buttonIndex)
+        return {
+            buttonIndex: isNaN(numberButtonIndex) ? 0 : numberButtonIndex,
+            data: cacheIndex ? this.getCachedData(cacheIndex, false) : undefined
         }
     }
 }
