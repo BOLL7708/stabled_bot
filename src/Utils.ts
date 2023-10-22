@@ -37,7 +37,7 @@ export default class Utils {
                 const pairs = row.split(/,/g)
                 for (const pair of pairs) {
                     const [label, value] = pair.split(':')
-                    pngInfo[Utils.toCamelCase(label)] = value.trim()
+                    if(label) pngInfo[Utils.toCamelCase(label)] = value?.trim() ?? ''
                 }
             }
         }

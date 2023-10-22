@@ -247,7 +247,10 @@ export default class StabledBot {
                             const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
                             const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
                             const content = [
-                                '```csv\n' + pngInfoResponse.info + '```'
+                                '## Parsed and presented as JSON:',
+                                '```json\n' + JSON.stringify(pngInfo, null, 2) + '```',
+                                '## Raw response presented as plain text:',
+                                '```' + pngInfoResponse.info + '```'
                             ]
                             await interaction.reply({
                                 ephemeral: true,
