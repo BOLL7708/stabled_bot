@@ -1,5 +1,5 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, Events, GatewayIntentBits, Message, ModalSubmitInteraction} from 'discord.js'
+import {ApplicationCommandOptionType, AttachmentBuilder, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, EmbedBuilder, Events, GatewayIntentBits, Message, ModalSubmitInteraction} from 'discord.js'
 import Tasks, {MessageDerivedData} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
@@ -18,9 +18,14 @@ export default class StabledBot {
         return ++this._interactionIndex
     }
 
+    private setCachedData(index: number | string, data: MessageDerivedData) {
+        this._dataCache.set(Number(index), data)
+    }
     private getCachedData(index: number | string, deleteCache: boolean = true): MessageDerivedData | undefined {
         const data = this._dataCache.get(Number(index))
-        if (data && deleteCache) this._dataCache.delete(Number(index))
+        if (data && deleteCache) {
+            this._dataCache.delete(Number(index))
+        }
         return data
     }
 
@@ -73,6 +78,7 @@ export default class StabledBot {
         })
 
         client.on(Events.InteractionCreate, async interaction => {
+            // region Buttons
             if (interaction.isButton()) {
                 Utils.log('Button triggered', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, payload] = interaction.customId.split('#')
@@ -98,7 +104,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_REDO: {
                         const nextIndex = this.getNextInteractionIndex()
-                        this._dataCache.set(nextIndex, data)
+                        this.setCachedData(nextIndex, data)
                         await DiscordCom.promptUser(new PromptUserOptions(
                             Constants.PROMPT_REDO,
                             "Random Seed",
@@ -110,7 +116,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_EDIT: {
                         const nextIndex = this.getNextInteractionIndex()
-                        this._dataCache.set(nextIndex, data)
+                        this.setCachedData(nextIndex, data)
                         await DiscordCom.promptUser(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
                             "Reused Seed",
@@ -123,7 +129,7 @@ export default class StabledBot {
                     case Constants.BUTTON_VARY: {
                         if (data.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
-                            this._dataCache.set(nextIndex, data)
+                            this.setCachedData(nextIndex, data)
                             await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.count, interaction)
                             break
                         }
@@ -152,7 +158,7 @@ export default class StabledBot {
                     case Constants.BUTTON_UPSCALE: {
                         if (data.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
-                            this._dataCache.set(nextIndex, data)
+                            this.setCachedData(nextIndex, data)
                             await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.count, interaction)
                             break
                         }
@@ -196,7 +202,7 @@ export default class StabledBot {
                     case Constants.BUTTON_DETAIL: {
                         if (data.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
-                            this._dataCache.set(nextIndex, data)
+                            this.setCachedData(nextIndex, data)
                             await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.count, interaction)
                             break
                         }
@@ -228,7 +234,7 @@ export default class StabledBot {
                     case Constants.BUTTON_INFO: {
                         if (data.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
-                            this._dataCache.set(nextIndex, data)
+                            this.setCachedData(nextIndex, data)
                             await DiscordCom.showButtons(Constants.BUTTON_INFO_CHOICE, 'Pick which image to get information for:', nextIndex, data.count, interaction)
                             break
                         }
@@ -244,17 +250,24 @@ export default class StabledBot {
                         }
                         if (attachment) {
                             const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
-                            const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
-                            const content = [
-                                '## Parsed and presented as JSON:',
-                                '```json\n' + JSON.stringify(pngInfo, null, 2) + '```',
-                                '## Raw response presented as plain text:',
-                                '```' + pngInfoResponse.info + '```'
-                            ]
-                            await interaction.reply({
-                                ephemeral: true,
-                                content: content.join('\n')
-                            })
+                            const pngInfo = pngInfoResponse.info
+                            const embeds: EmbedBuilder[] = []
+                            let embedStr = pngInfo.substring(0, 4096)
+                            while(embedStr.length > 0) {
+                                const embed = new EmbedBuilder().setDescription(embedStr)
+                                embeds.push(embed)
+                                embedStr = pngInfo.substring(embeds.length*4096, embeds.length*4096+4096)
+                            }
+                            try {
+                                await interaction.reply({
+                                    ephemeral: true,
+                                    content: `## PNG info loaded for: \`${attachment.name}\``,
+                                    embeds
+                                })
+                            } catch (e) {
+                                console.error('Info post failure:', e.message)
+                            }
+
                         } else {
                             await interaction.reply({
                                 ephemeral: true,
@@ -264,7 +277,11 @@ export default class StabledBot {
                         break
                     }
                 }
-            } else if (interaction.isCommand()) {
+            }
+            // endregion
+            else
+            // region Commands
+            if (interaction.isCommand()) {
                 switch (interaction.commandName) {
                     case Constants.COMMAND_GEN: {
                         const prompt = interaction.options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? 'random garbage'
@@ -293,13 +310,18 @@ export default class StabledBot {
                         })
                     }
                 }
-            } else if (interaction.isModalSubmit()) {
+            }
+            // endregion
+            else
+            // region Modals
+            if (interaction.isModalSubmit()) {
                 Utils.log('Modal result received', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, index] = interaction.customId.split('#')
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
                         const data = this.getCachedData(index)
                         const promptData = getPromptValues(interaction)
+                        console.log(data)
                         await runGen(
                             'Here is the remix',
                             promptData.prompt,
@@ -308,7 +330,7 @@ export default class StabledBot {
                             promptData.count,
                             data?.spoiler ?? false,
                             interaction,
-                            data.seeds.shift()
+                            data?.seeds.shift()
                         )
                         break
                     }
@@ -341,6 +363,7 @@ export default class StabledBot {
                     }
                 }
             }
+            // endregion
         })
 
         function getPromptValues(interaction: ModalSubmitInteraction): IPromptData {
@@ -458,7 +481,7 @@ export default class StabledBot {
         let cacheIndex: string
         if (payload) {
             [cacheIndex, buttonIndex] = payload.split(':')
-            const cachedData = this._dataCache.get(Number(cacheIndex))
+            const cachedData = this.getCachedData(cacheIndex, false)
             messageId = cachedData?.messageId
         } else {
             messageId = interaction.message.id

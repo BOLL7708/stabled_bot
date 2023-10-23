@@ -325,8 +325,9 @@ export default class DiscordCom {
         const promptRow4 = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput4)
 
+        const index = !!options.index ? `#${options.index}` : ''
         const modal = new ModalBuilder()
-            .setCustomId(options.customIdPrefix+(typeof options.index == 'number' ? `#${options.index}` : ''))
+            .setCustomId(options.customIdPrefix+index)
             .setTitle(options.title)
             .addComponents(promptRow, promptRow2, promptRow3, promptRow4)
         await options.interaction.showModal(modal)
