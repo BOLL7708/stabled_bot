@@ -5,13 +5,13 @@ export default class Utils {
         const DEFAULT = '512x512'
         // Parse values
         const sizePair = arbitrarySize.split(/\D/)
-        if(!sizePair || sizePair.length < 2) return DEFAULT
+        if (!sizePair || sizePair.length < 2) return DEFAULT
         const sizeWidth = Number(sizePair[0])
         const sizeHeight = Number(sizePair[1])
-        if(isNaN(sizeWidth) || isNaN(sizeHeight) || sizeWidth == 0 || sizeHeight == 0) return DEFAULT
+        if (isNaN(sizeWidth) || isNaN(sizeHeight) || sizeWidth == 0 || sizeHeight == 0) return DEFAULT
 
         // Output normalized size
-        const aspectRatio = sizeWidth/sizeHeight
+        const aspectRatio = sizeWidth / sizeHeight
         const width = Math.round(Math.sqrt(aspectRatio * (512 * 512)))
         const height = Math.round(width / aspectRatio)
         return `${width}x${height}`
@@ -19,14 +19,14 @@ export default class Utils {
 
     static getSerial(seed: number | string, subseed: number | string, count: number | string): string {
         const arr = [`${Date.now()}${count}`, seed.toString()]
-        if(!!subseed) arr.push(subseed.toString())
+        if (!!subseed) arr.push(subseed.toString())
         return arr.join('-')
     }
 
     static async progressBarMessage(value: number): Promise<string> {
         const bar = (await Config.get()).progressBarSymbols
         const index = Math.round(value * bar.length)
-        return `Generating... ${bar.slice(0, index).join('')}${'⚫'.repeat(bar.length-index)} \`${Math.round(value*100)}%\``
+        return `Generating... ${bar.slice(0, index).join('')}${'⚫'.repeat(bar.length - index)} \`${Math.round(value * 100)}%\``
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {
@@ -35,22 +35,44 @@ export default class Utils {
     }
 
     static parsePNGInfo(info?: string): PngInfo {
-        const MATCH_NEGATIVE_PROMPT = 'Negative prompt:'
+        const MATCH_NEGATIVE_PROMPT = 'Negative prompt: '
+        const MATCH_OPTIONS = 'Steps: '
         const pngInfo = new PngInfo()
         if (!info) return pngInfo
 
         const rows = info.split(/\n/g)
-        pngInfo.prompt = rows.shift()
+        let mode = 0
+        const promptArr = []
+        const negativePrompt = []
+        let firstRow = true
         for (const row of rows) {
-            if (row.startsWith(MATCH_NEGATIVE_PROMPT)) pngInfo.negativePrompt = row.replace(MATCH_NEGATIVE_PROMPT, '').trim()
-            else {
-                const pairs = row.split(/,/g)
-                for (const pair of pairs) {
-                    const [label, value] = pair.split(':')
-                    if(label) pngInfo[Utils.toCamelCase(label)] = value?.trim() ?? ''
-                }
+            if (row.startsWith(MATCH_NEGATIVE_PROMPT)) {
+                mode = 1
+                firstRow = true
+            } else if (row.startsWith(MATCH_OPTIONS)) {
+                mode = 2
+                firstRow = true
             }
+            switch (mode) {
+                case 0:
+                    promptArr.push(row)
+                    break
+                case 1:
+                    if (firstRow) negativePrompt.push(row.replace(MATCH_NEGATIVE_PROMPT, ''))
+                    else negativePrompt.push(row)
+                    break
+                case 2:
+                    const pairs = row.split(/,/g)
+                    for (const pair of pairs) {
+                        const [label, value] = pair.split(':')
+                        if (label) pngInfo[Utils.toCamelCase(label)] = value?.trim() ?? ''
+                    }
+                    break
+            }
+            firstRow = false
         }
+        pngInfo.prompt = promptArr.join('\n')
+        pngInfo.negativePrompt = negativePrompt.join('\n')
         return pngInfo
     }
 

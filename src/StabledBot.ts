@@ -21,6 +21,7 @@ export default class StabledBot {
     private setCachedData(index: number | string, data: MessageDerivedData) {
         this._dataCache.set(Number(index), data)
     }
+
     private getCachedData(index: number | string, deleteCache: boolean = true): MessageDerivedData | undefined {
         const data = this._dataCache.get(Number(index))
         if (data && deleteCache) {
@@ -78,8 +79,8 @@ export default class StabledBot {
         })
 
         client.on(Events.InteractionCreate, async interaction => {
-            // region Buttons
             if (interaction.isButton()) {
+                // region Buttons
                 Utils.log('Button triggered', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, payload] = interaction.customId.split('#')
                 const data = await Tasks.getDataForMessage(interaction.message)
@@ -252,17 +253,23 @@ export default class StabledBot {
                             const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
                             const pngInfo = pngInfoResponse.info
                             const embeds: EmbedBuilder[] = []
-                            let embedStr = pngInfo.substring(0, 4096)
-                            while(embedStr.length > 0) {
-                                const embed = new EmbedBuilder().setDescription(embedStr)
+                            const files: AttachmentBuilder[] = []
+                            if (pngInfo.length <= 4096) {
+                                const embed = new EmbedBuilder().setDescription(pngInfo)
                                 embeds.push(embed)
-                                embedStr = pngInfo.substring(embeds.length*4096, embeds.length*4096+4096)
+                            } else {
+                                const file = new AttachmentBuilder(
+                                    Buffer.from(pngInfo), {
+                                        name: attachment.name.replace('.png', '') + '.txt'
+                                    })
+                                files.push(file)
                             }
                             try {
                                 await interaction.reply({
                                     ephemeral: true,
                                     content: `## PNG info loaded for: \`${attachment.name}\``,
-                                    embeds
+                                    embeds,
+                                    files
                                 })
                             } catch (e) {
                                 console.error('Info post failure:', e.message)
@@ -277,31 +284,35 @@ export default class StabledBot {
                         break
                     }
                 }
-            }
-            // endregion
-            else
-            // region Commands
-            if (interaction.isCommand()) {
+                // endregion
+            } else if (interaction.isCommand()) {
+                // region Commands
                 switch (interaction.commandName) {
                     case Constants.COMMAND_GEN: {
-                        const prompt = interaction.options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? 'random garbage'
+                        const prompt = interaction.options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
                         const promptNegative = interaction.options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
                         const aspectRatio = interaction.options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
+                        const size = Utils.normalizeSize(aspectRatio)
                         const countValue = interaction.options.get(Constants.OPTION_COUNT)?.value
                         const count = countValue ? Number(countValue) : 4
                         const spoiler = !!interaction.options.get(Constants.OPTION_SPOILER)?.value
-                        const size = Utils.normalizeSize(aspectRatio)
-                        await runGen('Here you go', prompt, promptNegative, size, count, spoiler, interaction)
-                        break
-                    }
-                    case Constants.COMMAND_PROMPT: {
-                        await DiscordCom.promptUser(new PromptUserOptions(
-                            Constants.PROMPT_PROMPT,
-                            'New Seed',
-                            interaction,
-                            '',
-                            new MessageDerivedData()
-                        ))
+                        if (prompt.length > 0) {
+                            await runGen('Here you go', prompt, promptNegative, size, count, spoiler, interaction)
+                        } else {
+                            const messageData = new MessageDerivedData()
+                            messageData.prompt = prompt
+                            messageData.negativePrompt = promptNegative
+                            messageData.size = size
+                            messageData.count = count
+                            messageData.spoiler = spoiler
+                            await DiscordCom.promptUser(new PromptUserOptions(
+                                Constants.PROMPT_PROMPT,
+                                'New Seed',
+                                interaction,
+                                '',
+                                messageData
+                            ))
+                        }
                         break
                     }
                     default: {
@@ -310,18 +321,15 @@ export default class StabledBot {
                         })
                     }
                 }
-            }
-            // endregion
-            else
-            // region Modals
-            if (interaction.isModalSubmit()) {
+                // endregion
+            } else if (interaction.isModalSubmit()) {
+                // region Modals
                 Utils.log('Modal result received', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, index] = interaction.customId.split('#')
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
                         const data = this.getCachedData(index)
                         const promptData = getPromptValues(interaction)
-                        console.log(data)
                         await runGen(
                             'Here is the remix',
                             promptData.prompt,
@@ -362,14 +370,14 @@ export default class StabledBot {
                         break
                     }
                 }
+                // endregion
             }
-            // endregion
         })
 
         function getPromptValues(interaction: ModalSubmitInteraction): IPromptData {
             const countValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_COUNT) ?? '4'
             let count = Number(countValue)
-            if(isNaN(count)) count = 4
+            if (isNaN(count)) count = 4
             count = Math.min(Math.max(count, 1), 10)
 
             const sizeValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_SIZE) ?? '1:1'
@@ -459,12 +467,12 @@ export default class StabledBot {
      * @private
      */
     private static async replyDataError(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction) {
-        try {   
+        try {
             await interaction.reply({
                 ephemeral: true,
                 content: 'The menu has expired, dismiss it and relaunch.'
             })
-        } catch(e) {
+        } catch (e) {
             console.error('Failed to post error message:', e.message)
         }
     }

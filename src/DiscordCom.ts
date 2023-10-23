@@ -1,4 +1,4 @@
-import {ActionRowBuilder, APIEmbed, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, JSONEncodable, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ActionRowBuilder, APIEmbed, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
@@ -26,19 +26,16 @@ export default class DiscordCom {
                 return option
                     .setName(Constants.OPTION_PROMPT)
                     .setDescription('The positive prompt that includes elements.')
-                    .setRequired(true)
             })
             .addStringOption(option => {
                 return option
                     .setName(Constants.OPTION_NEGATIVE_PROMPT)
                     .setDescription('The negative prompt that excludes elements.')
-                    .setRequired(false)
             })
             .addIntegerOption(option => {
                 return option
                     .setName(Constants.OPTION_COUNT)
                     .setDescription('The number of images to generate.')
-                    .setRequired(false)
                     .addChoices(
                         {name: '1', value: 1},
                         {name: '2', value: 2},
@@ -56,7 +53,6 @@ export default class DiscordCom {
                 return option
                     .setName(Constants.OPTION_ASPECT_RATIO)
                     .setDescription('Aspect ratio of the generated images.')
-                    .setRequired(false)
                     .addChoices(
                         {name: 'Landscape Golden Ratio', value: '1.618:1'},
                         {name: 'Landscape 32:9', value: '32:9'},
@@ -79,7 +75,6 @@ export default class DiscordCom {
                 return option
                     .setName(Constants.OPTION_SPOILER)
                     .setDescription('Censor the generated images.')
-                    .setRequired(false)
             })
 
         const promptCommand = new SlashCommandBuilder()
@@ -170,7 +165,7 @@ export default class DiscordCom {
         if (options.hires) {
             row1.addComponents(deleteButton)
             components.push(row1)
-        } else if(options.details) {
+        } else if (options.details) {
             row1.addComponents(deleteButton, infoButton, upscaleButton)
             components.push(row1)
         } else if (options.variations) {
@@ -327,7 +322,7 @@ export default class DiscordCom {
 
         const index = !!options.index ? `#${options.index}` : ''
         const modal = new ModalBuilder()
-            .setCustomId(options.customIdPrefix+index)
+            .setCustomId(options.customIdPrefix + index)
             .setTitle(options.title)
             .addComponents(promptRow, promptRow2, promptRow3, promptRow4)
         await options.interaction.showModal(modal)
