@@ -77,15 +77,15 @@ export default class DiscordCom {
                     .setDescription('Censor the generated images.')
             })
 
-        const promptCommand = new SlashCommandBuilder()
-            .setName(Constants.COMMAND_PROMPT)
-            .setDescription('Launch the prompt editing interface.')
+        const helpCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_HELP)
+            .setDescription('Show the documentation.')
 
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
                     genCommand.toJSON(),
-                    promptCommand.toJSON()
+                    helpCommand.toJSON()
                 ]
             })
         } catch (e) {
@@ -135,11 +135,11 @@ export default class DiscordCom {
             .setStyle(ButtonStyle.Secondary)
         const redoButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_REDO)
-            .setEmoji('🔀')
+            .setEmoji('🎲')
             .setStyle(ButtonStyle.Secondary)
         const editButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_EDIT)
-            .setEmoji('🔁')
+            .setEmoji('♻️')
             .setStyle(ButtonStyle.Secondary)
         const upscaleButton = new ButtonBuilder()
             .setCustomId(Constants.BUTTON_UPSCALE)
@@ -172,8 +172,8 @@ export default class DiscordCom {
             row1.addComponents(deleteButton, infoButton, upscaleButton, detailButton)
             components.push(row1)
         } else {
-            row1.addComponents(deleteButton, redoButton, editButton, upscaleButton)
-            row2.addComponents(deadButton1, infoButton, varyButton, detailButton)
+            row1.addComponents(deleteButton, editButton, redoButton, varyButton)
+            row2.addComponents(deadButton1, infoButton, detailButton, upscaleButton)
             components.push(row1, row2)
         }
 

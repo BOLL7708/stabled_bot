@@ -8,9 +8,11 @@ import Utils, {Color} from './Utils.js'
 import DiscordCom, {MessageReference, PromptUserOptions, SendImagesOptions} from './DiscordCom.js'
 import StabledAPI, {GenerateImagesOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
+import fs from 'fs/promises'
 
 export default class StabledBot {
     private _config: IConfig
+    private _help: string
     private _dataCache = new Map<number, MessageDerivedData>()
     private _interactionIndex = 0
 
@@ -120,7 +122,7 @@ export default class StabledBot {
                         this.setCachedData(nextIndex, data)
                         await DiscordCom.promptUser(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
-                            "Reused Seed",
+                            "Recycle Seed",
                             interaction,
                             nextIndex.toString(),
                             data
@@ -312,6 +314,18 @@ export default class StabledBot {
                                 '',
                                 messageData
                             ))
+                        }
+                        break
+                    }
+                    case Constants.COMMAND_HELP: {
+                        try {
+                            if(!this._help) this._help = await fs.readFile('./help.md', 'utf8')
+                            interaction.reply({
+                                ephemeral: true,
+                                content: this._help
+                            })
+                        } catch (e) {
+                            console.error('Unable to load help:', e.message)
                         }
                         break
                     }

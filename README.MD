@@ -15,19 +15,4 @@ This was made to connect to a single node of Stable Diffusion, using SDAPI, spec
 5. Run `node index.js`
 
 ## How to use
-
-### Command
-There is a slash command `/gen`, please use it in #ꓮⵊ-ꓢpam🤖, #ꓐots🤖 or in a DM with the bot user. It has various options:
-* `prompt`: Mandatory description of what you want in the generated image.
-* `negative-prompt`: Optional description of what should NOT be in the image.
-* `count`: The number of images to generate in this batch.
-* `aspect-ratio`: The format of the resulting image output.
-* `spoiler`: Will spoiler tag all the image attachments.
-
-### Buttons
-When the bot has finished generating it will update the thinking message with the images, this includes these buttons:
-* ❌: Delete the post (only if you made when in public channels, by anyone in a DM)
-* 🔀: Reuse the post with a random seed, images will be different with the same prompt.
-* 🔁: Reuse the post with the same seed, images will be the same with the same prompt.
-* 🎛️: Generate a batch of variations of one of the images, these use a sub-seed with the original seed.
-* 🍄: Will use an up-scaler to output an image at four times the resolution.
+The bot comes with two commands, `/gen` is the main one for making images, `/help` will tell you how to use it.
