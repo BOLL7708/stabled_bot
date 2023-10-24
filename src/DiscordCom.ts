@@ -1,4 +1,4 @@
-import {ActionRowBuilder, APIEmbed, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ApplicationCommandType, ActionRowBuilder, APIEmbed, ApplicationCommand, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, ContextMenuCommandBuilder, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
@@ -81,11 +81,20 @@ export default class DiscordCom {
             .setName(Constants.COMMAND_HELP)
             .setDescription('Show the documentation.')
 
+        const genContextMenu = new ContextMenuCommandBuilder()
+            .setName(Constants.CONTEXTMENU_GEN)
+            .setType(ApplicationCommandType.User)
+        const helpContextMenu = new ContextMenuCommandBuilder()
+            .setName(Constants.CONTEXTMENU_HELP)
+            .setType(ApplicationCommandType.User)
+
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
                     genCommand.toJSON(),
-                    helpCommand.toJSON()
+                    helpCommand.toJSON(),
+                    genContextMenu.toJSON(),
+                    helpContextMenu.toJSON()
                 ]
             })
         } catch (e) {

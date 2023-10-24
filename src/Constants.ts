@@ -28,4 +28,7 @@ export default class Constants {
     static INPUT_NEW_NEGATIVE_PROMPT = 'new-negative-prompt'
 
     static COMMAND_HELP = 'help'
+
+    static CONTEXTMENU_GEN = 'Generate Images'
+    static CONTEXTMENU_HELP = 'Display Help'
 }

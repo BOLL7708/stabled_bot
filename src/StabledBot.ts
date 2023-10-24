@@ -290,6 +290,7 @@ export default class StabledBot {
             } else if (interaction.isCommand()) {
                 // region Commands
                 switch (interaction.commandName) {
+                    case Constants.CONTEXTMENU_GEN:
                     case Constants.COMMAND_GEN: {
                         const prompt = interaction.options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
                         const promptNegative = interaction.options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
@@ -317,6 +318,7 @@ export default class StabledBot {
                         }
                         break
                     }
+                    case Constants.CONTEXTMENU_HELP:
                     case Constants.COMMAND_HELP: {
                         try {
                             if(!this._help) this._help = await fs.readFile('./help.md', 'utf8')
@@ -329,6 +331,16 @@ export default class StabledBot {
                         }
                         break
                     }
+                    // case Constants.CONTEXTMENU_GEN: {
+                    //     await DiscordCom.promptUser(new PromptUserOptions(
+                    //         Constants.PROMPT_PROMPT,
+                    //         'New Seed',
+                    //         interaction,
+                    //         '',
+                    //         new MessageDerivedData()
+                    //     ))
+                    //     break
+                    // }
                     default: {
                         interaction.reply({
                             content: `Sorry ${interaction.user} but this command has been retired.`
@@ -336,6 +348,9 @@ export default class StabledBot {
                     }
                 }
                 // endregion
+            } else if (interaction.isUserContextMenuCommand()) {
+                // TODO: This appears to not get triggered, it goes into slash commands instead?
+                console.log(interaction)
             } else if (interaction.isModalSubmit()) {
                 // region Modals
                 Utils.log('Modal result received', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
