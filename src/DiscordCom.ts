@@ -1,4 +1,4 @@
-import {ApplicationCommandType, ActionRowBuilder, APIEmbed, ApplicationCommand, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, ContextMenuCommandBuilder, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, ContextMenuCommandBuilder, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
@@ -79,7 +79,7 @@ export default class DiscordCom {
 
         const helpCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_HELP)
-            .setDescription('Show the documentation.')
+            .setDescription('Show documentation about the bot and instructions on how to use it.')
 
         const genContextMenu = new ContextMenuCommandBuilder()
             .setName(Constants.CONTEXTMENU_GEN)
@@ -88,11 +88,21 @@ export default class DiscordCom {
             .setName(Constants.CONTEXTMENU_HELP)
             .setType(ApplicationCommandType.User)
 
+        const spamCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_SPAM)
+            .setDescription('Launch a spam thread where each message is a prompt.')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_SPAM_TITLE)
+                    .setDescription('The title of the spam thread.')
+            })
+
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
                     genCommand.toJSON(),
                     helpCommand.toJSON(),
+                    spamCommand.toJSON(),
                     genContextMenu.toJSON(),
                     helpContextMenu.toJSON()
                 ]
@@ -105,26 +115,39 @@ export default class DiscordCom {
     // endregion
 
     // region Send
-    static async replyQueuedAndGetReference(interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<MessageReference> {
-        await interaction.reply({
-            content: `Queued...`
-        })
-
-        let replyMessage: Message | undefined
+    static async replyQueuedAndGetReference(message?: Message, interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<MessageReference> {
+        let sentMessage: Message | undefined
         try {
-            replyMessage = await interaction.fetchReply()
+            if (interaction instanceof ButtonInteraction || interaction instanceof ModalSubmitInteraction) {
+                // To these we respond as a separate message, as button menus are ephemeral and will create missing references.
+                await interaction?.deferUpdate()
+                const channel = interaction?.channel
+                sentMessage = await channel?.send({content: Constants.CONTENT_QUEUED})
+            } else if (interaction instanceof CommandInteraction) {
+                // Commands cannot be directly dismissed, so we reply directly to the interaction instead.
+                await interaction.reply({content: Constants.CONTENT_QUEUED})
+                sentMessage = await interaction.fetchReply()
+            } else if (message) {
+                sentMessage = await message.channel.send({content: Constants.CONTENT_QUEUED})
+            }
         } catch (e) {
-            console.error(e)
+            console.error('Unable to initiate response.', e.message)
         }
-        return new MessageReference(
-            interaction?.user?.id,
-            interaction?.channelId,
-            interaction?.guildId,
-            replyMessage?.id ?? '',
-            interaction?.user?.username,
-            interaction?.channel?.name,
-            interaction?.guild?.name
-        )
+        const reference = new MessageReference()
+        if (message) {
+            reference.userId = message.author?.id?.toString()
+            reference.channelId = message.channelId
+            reference.guildId = message.guildId
+            reference.messageId = sentMessage?.id ?? ''
+            reference.userName = message.author?.username
+        } else if (interaction) {
+            reference.userId = interaction.user?.id
+            reference.channelId = interaction.channelId
+            reference.guildId = interaction.guildId
+            reference.messageId = sentMessage?.id ?? ''
+            reference.userName = interaction.user?.username
+        }
+        return reference
     }
 
     static async sendImagesAsReply(client: Client, options: SendImagesOptions) {
@@ -347,9 +370,8 @@ export class MessageReference {
         public channelId: string = '',
         public guildId: string = '',
         public messageId: string = '',
-        public userName: string = '',
-        public channelName: string = '',
-        public guildName: string = ''
+        public responseId: string = '',
+        public userName: string = ''
     ) {
     }
 
@@ -369,6 +391,7 @@ export class MessageReference {
     }
 
     async getMessage(client: Client): Promise<Message | undefined> {
+        if (!this.messageId || this.messageId.length == 0) return undefined
         try {
             const channel = await this.getChannel(client)
             if (!channel) return undefined
@@ -388,7 +411,7 @@ export class MessageReference {
     }
 
     getConsoleLabel(): string {
-        return `${this.guildName ? this.guildName + ' > ' : 'DM > '}${this.channelName ? this.channelName + ' > ' : ''}${this.userName}`
+        return `${this.guildId ? this.guildId + ' > ' : 'DM > '}${this.channelId ? this.channelId + ' > ' : ''}${this.userName}`
     }
 }
 

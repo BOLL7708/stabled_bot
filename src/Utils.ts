@@ -1,4 +1,5 @@
 import Config from './Config.js'
+import Constants from './Constants.js'
 
 export default class Utils {
     static normalizeSize(arbitrarySize: string): string {
@@ -26,7 +27,7 @@ export default class Utils {
     static async progressBarMessage(value: number): Promise<string> {
         const bar = (await Config.get()).progressBarSymbols
         const index = Math.round(value * bar.length)
-        return `Generating... ${bar.slice(0, index).join('')}${'⚫'.repeat(bar.length - index)} \`${Math.round(value * 100)}%\``
+        return `${Constants.CONTENT_GENERATING} ${bar.slice(0, index).join('')}${'⚫'.repeat(bar.length - index)} \`${Math.round(value * 100)}%\``
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {

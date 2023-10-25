@@ -2,7 +2,7 @@
 This was made to connect to a single node of Stable Diffusion, using SDAPI, specifically [Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui). 
 
 ## Features
-1. Adds the slash command `/gen`
+1. Adds the slash command `/gen`, `/help` and `/spam`.
 2. Adds buttons to responses which allows further generation, deletion, up-scaling and more.
 3. Works in servers as well as DMs.
 4. Does not permanently store any data locally, everything is stored in the messages on Discord.

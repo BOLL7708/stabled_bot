@@ -1,4 +1,7 @@
 export default class Constants {
+    static CONTENT_QUEUED = '⏰ Queued...'
+    static CONTENT_GENERATING = '🎪 Generating...'
+
     static BUTTON_DELETE = 'delete'
     static BUTTON_EDIT = 'edit'
     static BUTTON_REDO = 'redo'
@@ -18,6 +21,9 @@ export default class Constants {
     static OPTION_COUNT = 'count'
     static OPTION_ASPECT_RATIO = 'aspect-ratio'
     static OPTION_SPOILER = 'spoiler'
+
+    static COMMAND_SPAM = 'spam'
+    static OPTION_SPAM_TITLE = 'title'
 
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'

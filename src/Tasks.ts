@@ -1,4 +1,4 @@
-import {ActivityType, APIEmbed, ApplicationCommandOptionType, Attachment, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalSubmitInteraction, TextChannel, TextInputStyle, User} from 'discord.js'
+import {ActivityType, APIEmbed, ApplicationCommandOptionType, ButtonStyle, Client, DMChannel, Message, TextChannel, TextInputStyle} from 'discord.js'
 import Constants from './Constants.js'
 import Utils, {IStringDictionary} from './Utils.js'
 import {MessageReference} from './DiscordCom.js'
@@ -35,7 +35,7 @@ export default class Tasks {
             data.spoiler = attachment.spoiler
             const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
             const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
-            if(pngInfo) {
+            if (pngInfo) {
                 data.prompt = pngInfo.prompt
                 data.negativePrompt = pngInfo.negativePrompt
                 data.size = pngInfo.size
@@ -101,7 +101,7 @@ export default class Tasks {
                     try {
                         const message = await reference.getMessage(client)
                         message?.edit({
-                            content: `Queued... \`${++placeInQueue}/${queueCount - 1}\``
+                            content: `${Constants.CONTENT_QUEUED} \`${++placeInQueue}/${queueCount - 1}\``
                         })
                     } catch (e) {
                         console.error('Queue update failed:', e.message)

@@ -2,6 +2,7 @@
 * This bot does not permanently store any prompts or generated images locally, all of that is sent to Discord and reside solely in the channels posted to.
 * There is no restriction on NSFW generation, but make sure that ends up in a channel that allows it.
 * The bot can also be used in DMs with the bot user, this is recommended for private or spammy use.
+* The bot is open source and available on [GitHub](https://github.com/BOLL7708/stabled_bot).
 ## Usage
 You use the bot through the slash command `/gen`, please use it in appropriate channels or in a DM with the bot user.  
 You can run the command empty to launch an editor, or supply inline options:

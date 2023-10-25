@@ -9,12 +9,15 @@ import DiscordCom, {MessageReference, PromptUserOptions, SendImagesOptions} from
 import StabledAPI, {GenerateImagesOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
 import fs from 'fs/promises'
+import DB from './DB.js'
 
 export default class StabledBot {
     private _config: IConfig
     private _help: string
     private _dataCache = new Map<number, MessageDerivedData>()
     private _interactionIndex = 0
+    private _spamTheadStates = new Map<string, boolean>()
+    private _db: DB
 
     private getNextInteractionIndex(): number {
         return ++this._interactionIndex
@@ -34,6 +37,7 @@ export default class StabledBot {
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
+        this._db = new DB()
 
         // Update bot status
         const loadProgressJob = new CronJob(
@@ -78,6 +82,23 @@ export default class StabledBot {
         else client.login(this._config.token).then()
 
         client.on(Events.MessageCreate, async message => {
+            let state = this._spamTheadStates.get(message.channelId)
+            if (message.author.bot) return
+            if (message.mentions.members.size > 0) return
+            if (state === undefined) {
+                const dbState = await this._db.isSpamThread(message.channelId)
+                this._spamTheadStates.set(message.channelId, dbState)
+                state = dbState
+            }
+            if (state) {
+                const prompt = message.content
+                const promptNegative = ''
+                const aspectRatio = '1:1'
+                const size = Utils.normalizeSize(aspectRatio)
+                const count = 1
+                const spoiler = false
+                await runGen('Spam served', prompt, promptNegative, size, count, spoiler, message, undefined, undefined, false, false, false)
+            }
         })
 
         client.on(Events.InteractionCreate, async interaction => {
@@ -149,6 +170,7 @@ export default class StabledBot {
                                 useData.size,
                                 4,
                                 useData.spoiler,
+                                undefined,
                                 interaction,
                                 useData.seeds[buttonData.buttonIndex],
                                 true
@@ -171,7 +193,7 @@ export default class StabledBot {
                         const buttonData = this.getDataForButton(payload)
                         const useData = buttonData.data ?? data
                         if (useData) {
-                            const reference = await DiscordCom.replyQueuedAndGetReference(interaction)
+                            const reference = await DiscordCom.replyQueuedAndGetReference(undefined, interaction)
                             try {
                                 Tasks.updateQueues()
                                 const images = await Tasks.getAttachmentAndUpscale(client, reference, useData.messageId, buttonData.buttonIndex)
@@ -223,6 +245,7 @@ export default class StabledBot {
                                 useData.size,
                                 1,
                                 useData.spoiler,
+                                undefined,
                                 interaction,
                                 seed,
                                 false,
@@ -269,7 +292,7 @@ export default class StabledBot {
                             try {
                                 await interaction.reply({
                                     ephemeral: true,
-                                    content: `## PNG info loaded for: \`${attachment.name}\``,
+                                    content: `PNG info loaded for: \`${attachment.name}\``,
                                     embeds,
                                     files
                                 })
@@ -300,7 +323,7 @@ export default class StabledBot {
                         const count = countValue ? Number(countValue) : 4
                         const spoiler = !!interaction.options.get(Constants.OPTION_SPOILER)?.value
                         if (prompt.length > 0) {
-                            await runGen('Here you go', prompt, promptNegative, size, count, spoiler, interaction)
+                            await runGen('Here you go', prompt, promptNegative, size, count, spoiler, undefined, interaction)
                         } else {
                             const messageData = new MessageDerivedData()
                             messageData.prompt = prompt
@@ -321,7 +344,7 @@ export default class StabledBot {
                     case Constants.CONTEXTMENU_HELP:
                     case Constants.COMMAND_HELP: {
                         try {
-                            if(!this._help) this._help = await fs.readFile('./help.md', 'utf8')
+                            if (!this._help) this._help = await fs.readFile('./help.md', 'utf8')
                             interaction.reply({
                                 ephemeral: true,
                                 content: this._help
@@ -331,16 +354,37 @@ export default class StabledBot {
                         }
                         break
                     }
-                    // case Constants.CONTEXTMENU_GEN: {
-                    //     await DiscordCom.promptUser(new PromptUserOptions(
-                    //         Constants.PROMPT_PROMPT,
-                    //         'New Seed',
-                    //         interaction,
-                    //         '',
-                    //         new MessageDerivedData()
-                    //     ))
-                    //     break
-                    // }
+                    case Constants.COMMAND_SPAM: {
+                        // Create new private thread in the current channel.
+                        const channel = await DiscordUtils.getChannelFromInteraction(interaction)
+                        if (channel instanceof DMChannel) {
+                            interaction.reply({
+                                ephemeral: true,
+                                content: 'Spam threads can only be created in public channels.'
+                            })
+                        } else {
+                            const name = interaction.options.get(Constants.OPTION_SPAM_TITLE)?.value?.toString() ?? `Spam Thread for ${interaction.user.username}`
+                            const privateChannel = await channel.threads.create({
+                                name,
+                                type: ChannelType.PrivateThread
+                            })
+                            if (privateChannel) {
+                                const saved = await this._db.registerSpamThread(privateChannel.id)
+                                if (saved) {
+                                    this._spamTheadStates.set(privateChannel.id, true)
+                                    privateChannel.send({
+                                        content: `Welcome to your own spam channel ${interaction.user}, you can tag others in this thread to invite them!`
+                                    })
+                                } else {
+                                    interaction.reply({
+                                        ephemeral: true,
+                                        content: 'Failed to create spam thread.'
+                                    })
+                                }
+                            }
+                        }
+                        break
+                    }
                     default: {
                         interaction.reply({
                             content: `Sorry ${interaction.user} but this command has been retired.`
@@ -366,6 +410,7 @@ export default class StabledBot {
                             promptData.size,
                             promptData.count,
                             data?.spoiler ?? false,
+                            undefined,
                             interaction,
                             data?.seeds.shift()
                         )
@@ -381,6 +426,7 @@ export default class StabledBot {
                             promptData.size,
                             promptData.count,
                             data?.spoiler ?? false,
+                            undefined,
                             interaction
                         )
                         break
@@ -394,6 +440,7 @@ export default class StabledBot {
                             promptData.size,
                             promptData.count,
                             false,
+                            undefined,
                             interaction
                         )
                         break
@@ -418,7 +465,6 @@ export default class StabledBot {
                 size,
                 count
             }
-
         }
 
         async function runGen(
@@ -428,14 +474,15 @@ export default class StabledBot {
             size: string,
             count: number,
             spoiler: boolean,
-            interaction: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
+            message?: Message,
+            interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
             seed?: ISeed,
             variations?: boolean,
             hires?: boolean,
             details?: boolean
         ) {
             try {
-                const reference = await DiscordCom.replyQueuedAndGetReference(interaction)
+                const reference = await DiscordCom.replyQueuedAndGetReference(message, interaction)
 
                 // Generate
                 Utils.log('Adding to queue', `${count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
