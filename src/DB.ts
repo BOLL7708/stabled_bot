@@ -25,9 +25,9 @@ export default class DB {
                 filename: './db/stabled_bot.db',
                 driver: sqlite3.Database
             })
-            this._db.on('trace', (data) => {
-                console.log('SQL Trace:', data)
-            })
+            // this._db.on('trace', (data) => {
+            //     console.log('SQL Trace:', data)
+            // })
         }
         return this._db
     }
