@@ -1,5 +1,5 @@
 import axios, {AxiosInstance, AxiosResponse} from 'axios'
-import {MessageReference} from './DiscordCom.js'
+import {ESource, MessageReference} from './DiscordCom.js'
 import Config from './Config.js'
 import Utils, {IStringDictionary} from './Utils.js'
 import {ISeed} from './DiscordUtils.js'
@@ -57,6 +57,13 @@ export default class StabledAPI {
             body['hr_upscaler'] = 'Latent'
             body['denoising_strength'] = 0.7
         }
+
+        let source: ESource = ESource.Generate
+        if(options.predefinedSeed) source = ESource.Recycle
+        if(options.hires) source = ESource.Upres
+        if(options.variation) source = ESource.Variation
+        if(options.details) source = ESource.Detail
+        options.reference.source = source
 
         const queueIndex = this.registerQueueItem(options.reference)
         let response: AxiosResponse<IStabledResponse>

@@ -5,7 +5,7 @@ import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
 import Utils, {Color} from './Utils.js'
-import DiscordCom, {MessageReference, PromptUserOptions, SendImagesOptions} from './DiscordCom.js'
+import DiscordCom, {ESource, MessageReference, PromptUserOptions, SendImagesOptions} from './DiscordCom.js'
 import StabledAPI, {GenerateImagesOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
 import fs from 'fs/promises'
@@ -16,7 +16,7 @@ export default class StabledBot {
     private _help: string
     private _dataCache = new Map<number, MessageDerivedData>()
     private _interactionIndex = 0
-    private _spamTheadStates = new Map<string, boolean>()
+    private _spamTheadStates = new Map<string, boolean>() // Use methods to set this so it also updates the database.
     private _db: DB
 
     private getNextInteractionIndex(): number {
@@ -62,10 +62,10 @@ export default class StabledBot {
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.DirectMessages,
                 GatewayIntentBits.MessageContent,
-                GatewayIntentBits.Guilds,
+                GatewayIntentBits.Guilds
             ],
             partials: [
-                Partials.Channel
+                Partials.Channel // Enables loading of DM channels on login, otherwise it is required that a command is used in one for it to exist and emit messages.
             ]
         })
         client.once(Events.ClientReady, async (c) => {
@@ -97,8 +97,6 @@ export default class StabledBot {
                 const count = 1
                 const spoiler = false
                 await runGen('Spam served', prompt, promptNegative, size, count, spoiler, message, undefined, undefined, false, false, false)
-            } else {
-                console.log('Not spamming:', message.content)
             }
         })
 
@@ -195,6 +193,7 @@ export default class StabledBot {
                         const useData = buttonData.data ?? data
                         if (useData) {
                             const reference = await DiscordCom.replyQueuedAndGetReference(undefined, interaction)
+                            reference.source = ESource.Upscale
                             try {
                                 Tasks.updateQueues()
                                 const images = await Tasks.getAttachmentAndUpscale(client, reference, useData.messageId, buttonData.buttonIndex)
@@ -378,7 +377,7 @@ export default class StabledBot {
                                     if (privateChannel) {
                                         const saved = await this._db.registerSpamThread(privateChannel.id)
                                         if (saved) {
-                                            this._spamTheadStates.set(privateChannel.id, true)
+                                            await this.setSpamState(privateChannel.id, true)
                                             try {
                                                 privateChannel.send({
                                                     content: `Welcome to your own spam channel ${user}, you can tag others in this thread to invite them!`
@@ -402,7 +401,7 @@ export default class StabledBot {
                                 break
                             case Constants.SUBCOMMAND_SPAM_ON: {
                                 const channel = await DiscordUtils.getChannelFromInteraction(interaction)
-                                await this._db.registerSpamThread(channel.id)
+                                await this.setSpamState(channel.id, true)
                                 try {
                                     await interaction.reply({
                                         ephemeral: true,
@@ -415,7 +414,7 @@ export default class StabledBot {
                             }
                             case Constants.SUBCOMMAND_SPAM_OFF: {
                                 const channel = await DiscordUtils.getChannelFromInteraction(interaction)
-                                await this._db.unregisterSpamThread(channel.id)
+                                await this.setSpamState(channel.id, false)
                                 try {
                                     await interaction.reply({
                                         ephemeral: true,
@@ -652,6 +651,10 @@ export default class StabledBot {
             this._spamTheadStates.set(channelId, state)
         }
         return state
+    }
+    private async setSpamState(channelId: string, state: boolean) {
+        this._spamTheadStates.set(channelId, state)
+        state ? await this._db.registerSpamThread(channelId) : await this._db.unregisterSpamThread(channelId)
     }
 }
 

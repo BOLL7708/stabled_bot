@@ -123,17 +123,18 @@ export default class DiscordCom {
     static async replyQueuedAndGetReference(message?: Message, interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<MessageReference> {
         let sentMessage: Message | undefined
         try {
+            const queuedMessage = `${Constants.CONTENT_QUEUED}...`
             if (interaction instanceof ButtonInteraction || interaction instanceof ModalSubmitInteraction) {
                 // To these we respond as a separate message, as button menus are ephemeral and will create missing references.
                 await interaction?.deferUpdate()
                 const channel = interaction?.channel
-                sentMessage = await channel?.send({content: Constants.CONTENT_QUEUED})
+                sentMessage = await channel?.send({content: queuedMessage})
             } else if (interaction instanceof CommandInteraction) {
                 // Commands cannot be directly dismissed, so we reply directly to the interaction instead.
-                await interaction.reply({content: Constants.CONTENT_QUEUED})
+                await interaction.reply({content: queuedMessage})
                 sentMessage = await interaction.fetchReply()
             } else if (message) {
-                sentMessage = await message.channel.send({content: Constants.CONTENT_QUEUED})
+                sentMessage = await message.channel.send({content: queuedMessage})
             }
         } catch (e) {
             console.error('Unable to initiate response.', e.message)
@@ -369,6 +370,16 @@ export default class DiscordCom {
 }
 
 // region Sub Classes
+export enum ESource {
+    Unknown = 'unknown',
+    Generate = 'generation',
+    Recycle = 'recycling',
+    Variation = 'variations',
+    Detail = 'details',
+    Upscale = 'up-scaling',
+    Upres = 'up-ressing'
+}
+
 export class MessageReference {
     constructor(
         public userId: string = '',
@@ -376,7 +387,8 @@ export class MessageReference {
         public guildId: string = '',
         public messageId: string = '',
         public responseId: string = '',
-        public userName: string = ''
+        public userName: string = '',
+        public source: ESource = ESource.Unknown
     ) {
     }
 

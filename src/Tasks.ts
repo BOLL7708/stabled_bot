@@ -101,7 +101,7 @@ export default class Tasks {
                     try {
                         const message = await reference.getMessage(client)
                         message?.edit({
-                            content: `${Constants.CONTENT_QUEUED} \`${++placeInQueue}/${queueCount - 1}\``
+                            content: `${Constants.CONTENT_QUEUED} ${reference.source}... \`${++placeInQueue}/${queueCount - 1}\``
                         })
                     } catch (e) {
                         console.error('Queue update failed:', e.message)

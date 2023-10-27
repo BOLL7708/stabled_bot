@@ -1,6 +1,6 @@
 export default class Constants {
-    static CONTENT_QUEUED = '⏰ Queued...'
-    static CONTENT_GENERATING = '🎪 Generating...'
+    static CONTENT_QUEUED = '⏰ Queued'
+    static CONTENT_GENERATING = '🎪 Generating'
 
     static BUTTON_DELETE = 'delete'
     static BUTTON_EDIT = 'edit'
