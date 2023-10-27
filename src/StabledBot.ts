@@ -1,5 +1,5 @@
 import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, AttachmentBuilder, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, EmbedBuilder, Events, GatewayIntentBits, Message, ModalSubmitInteraction} from 'discord.js'
+import {ApplicationCommandOptionType, AttachmentBuilder, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, EmbedBuilder, Events, GatewayIntentBits, Message, ModalSubmitInteraction, Partials} from 'discord.js'
 import Tasks, {MessageDerivedData} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
@@ -60,9 +60,12 @@ export default class StabledBot {
         const client: Client = new Client({
             intents: [
                 GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.MessageContent,
                 GatewayIntentBits.DirectMessages,
+                GatewayIntentBits.MessageContent,
                 GatewayIntentBits.Guilds,
+            ],
+            partials: [
+                Partials.Channel
             ]
         })
         client.once(Events.ClientReady, async (c) => {
@@ -82,14 +85,10 @@ export default class StabledBot {
         else client.login(this._config.token).then()
 
         client.on(Events.MessageCreate, async message => {
-            let state = this._spamTheadStates.get(message.channelId)
+            const state = await this.getSpamState(message.channelId)
+            const isDM = message.channel.isDMBased()
             if (message.author.bot) return
-            if (message.mentions.members.size > 0) return
-            if (state === undefined) {
-                const dbState = await this._db.isSpamThread(message.channelId)
-                this._spamTheadStates.set(message.channelId, dbState)
-                state = dbState
-            }
+            if (!isDM && message.mentions.members.size > 0) return
             if (state) {
                 const prompt = message.content
                 const promptNegative = ''
@@ -98,6 +97,8 @@ export default class StabledBot {
                 const count = 1
                 const spoiler = false
                 await runGen('Spam served', prompt, promptNegative, size, count, spoiler, message, undefined, undefined, false, false, false)
+            } else {
+                console.log('Not spamming:', message.content)
             }
         })
 
@@ -310,18 +311,18 @@ export default class StabledBot {
                     }
                 }
                 // endregion
-            } else if (interaction.isCommand()) {
+            } else if (interaction.isChatInputCommand()) {
                 // region Commands
-                switch (interaction.commandName) {
-                    case Constants.CONTEXTMENU_GEN:
+                const {commandName, options, user} = interaction
+                switch (commandName) {
                     case Constants.COMMAND_GEN: {
-                        const prompt = interaction.options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
-                        const promptNegative = interaction.options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
-                        const aspectRatio = interaction.options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
+                        const prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
+                        const promptNegative = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
+                        const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
                         const size = Utils.normalizeSize(aspectRatio)
-                        const countValue = interaction.options.get(Constants.OPTION_COUNT)?.value
+                        const countValue = options.get(Constants.OPTION_COUNT)?.value
                         const count = countValue ? Number(countValue) : 4
-                        const spoiler = !!interaction.options.get(Constants.OPTION_SPOILER)?.value
+                        const spoiler = !!options.get(Constants.OPTION_SPOILER)?.value
                         if (prompt.length > 0) {
                             await runGen('Here you go', prompt, promptNegative, size, count, spoiler, undefined, interaction)
                         } else {
@@ -341,7 +342,6 @@ export default class StabledBot {
                         }
                         break
                     }
-                    case Constants.CONTEXTMENU_HELP:
                     case Constants.COMMAND_HELP: {
                         try {
                             if (!this._help) this._help = await fs.readFile('./help.md', 'utf8')
@@ -357,38 +357,97 @@ export default class StabledBot {
                     case Constants.COMMAND_SPAM: {
                         // Create new private thread in the current channel.
                         const channel = await DiscordUtils.getChannelFromInteraction(interaction)
-                        if (channel instanceof DMChannel) {
-                            interaction.reply({
-                                ephemeral: true,
-                                content: 'Spam threads can only be created in public channels.'
-                            })
-                        } else {
-                            const name = interaction.options.get(Constants.OPTION_SPAM_TITLE)?.value?.toString() ?? `Spam Thread for ${interaction.user.username}`
-                            const privateChannel = await channel.threads.create({
-                                name,
-                                type: ChannelType.PrivateThread
-                            })
-                            if (privateChannel) {
-                                const saved = await this._db.registerSpamThread(privateChannel.id)
-                                if (saved) {
-                                    this._spamTheadStates.set(privateChannel.id, true)
-                                    privateChannel.send({
-                                        content: `Welcome to your own spam channel ${interaction.user}, you can tag others in this thread to invite them!`
-                                    })
+                        const subcommand = options.getSubcommand()
+                        switch (subcommand) {
+                            case Constants.SUBCOMMAND_SPAM_THREAD: {
+                                if (channel instanceof DMChannel) {
+                                    try {
+                                        interaction.reply({
+                                            ephemeral: true,
+                                            content: 'Spam threads can only be created from public channels.'
+                                        })
+                                    } catch (e) {
+                                        console.error('Spam thread cannot be created iN DM:', e.message)
+                                    }
                                 } else {
-                                    interaction.reply({
-                                        ephemeral: true,
-                                        content: 'Failed to create spam thread.'
+                                    const name = interaction.options.get(Constants.OPTION_SPAM_TITLE)?.value?.toString() ?? `Spam Thread for ${user.username}`
+                                    const privateChannel = await channel.threads.create({
+                                        name,
+                                        type: ChannelType.PrivateThread
                                     })
+                                    if (privateChannel) {
+                                        const saved = await this._db.registerSpamThread(privateChannel.id)
+                                        if (saved) {
+                                            this._spamTheadStates.set(privateChannel.id, true)
+                                            try {
+                                                privateChannel.send({
+                                                    content: `Welcome to your own spam channel ${user}, you can tag others in this thread to invite them!`
+                                                })
+                                            } catch (e) {
+                                                console.error('Failed to send welcome message:', e.message)
+                                            }
+                                        } else {
+                                            try {
+                                                await interaction.reply({
+                                                    ephemeral: true,
+                                                    content: 'Failed to create spam thread.'
+                                                })
+                                            } catch (e) {
+                                                console.error('Failed to create spam thread:', e.message)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                                break
+                            case Constants.SUBCOMMAND_SPAM_ON: {
+                                const channel = await DiscordUtils.getChannelFromInteraction(interaction)
+                                await this._db.registerSpamThread(channel.id)
+                                try {
+                                    await interaction.reply({
+                                        ephemeral: true,
+                                        content: 'Spam ON!'
+                                    })
+                                } catch (e) {
+                                    console.error('Spam ON failed:', e.message)
+                                }
+                                break
+                            }
+                            case Constants.SUBCOMMAND_SPAM_OFF: {
+                                const channel = await DiscordUtils.getChannelFromInteraction(interaction)
+                                await this._db.unregisterSpamThread(channel.id)
+                                try {
+                                    await interaction.reply({
+                                        ephemeral: true,
+                                        content: 'Spam OFF!'
+                                    })
+                                } catch (e) {
+                                    console.error('Spam OFF failed:', e.message)
+                                }
+                                break
+                            }
+                            default: {
+                                try {
+                                    await interaction.reply({
+                                        ephemeral: true,
+                                        content: 'This option does not exist.'
+                                    })
+                                } catch (e) {
+                                    console.error('Spam option failed:', e.message)
                                 }
                             }
                         }
                         break
                     }
                     default: {
-                        interaction.reply({
-                            content: `Sorry ${interaction.user} but this command has been retired.`
-                        })
+                        try {
+                            interaction.reply({
+                                ephemeral: true,
+                                content: `Sorry ${interaction.user} but command ${commandName} has been retired.`
+                            })
+                        } catch (e) {
+                            console.error('Command default error response failed:', e.message)
+                        }
                     }
                 }
                 // endregion
@@ -584,6 +643,15 @@ export default class StabledBot {
             buttonIndex: isNaN(numberButtonIndex) ? 0 : numberButtonIndex,
             data: cacheIndex ? this.getCachedData(cacheIndex, false) : undefined
         }
+    }
+
+    private async getSpamState(channelId: string) {
+        let state = this._spamTheadStates.get(channelId)
+        if (state === undefined) {
+            state = await this._db.isSpamThread(channelId)
+            this._spamTheadStates.set(channelId, state)
+        }
+        return state
     }
 }
 

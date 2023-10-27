@@ -1,4 +1,4 @@
-import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, ContextMenuCommandBuilder, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
@@ -81,30 +81,35 @@ export default class DiscordCom {
             .setName(Constants.COMMAND_HELP)
             .setDescription('Show documentation about the bot and instructions on how to use it.')
 
-        const genContextMenu = new ContextMenuCommandBuilder()
-            .setName(Constants.CONTEXTMENU_GEN)
-            .setType(ApplicationCommandType.User)
-        const helpContextMenu = new ContextMenuCommandBuilder()
-            .setName(Constants.CONTEXTMENU_HELP)
-            .setType(ApplicationCommandType.User)
-
         const spamCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_SPAM)
-            .setDescription('Launch a spam thread where each message is a prompt.')
-            .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_SPAM_TITLE)
-                    .setDescription('The title of the spam thread.')
+            .setDescription('Access spam feature alternatives.')
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_SPAM_THREAD)
+                    .setDescription('Launch a spam thread where each message is a prompt.')
+                    .addStringOption(option => {
+                        return option
+                            .setName(Constants.OPTION_SPAM_TITLE)
+                            .setDescription('The title of the spam thread.')
+                    })
             })
-
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_SPAM_ON)
+                    .setDescription('Turn on spam mode in this channel.')
+            })
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_SPAM_OFF)
+                    .setDescription('Turn off spam mode in this channel.')
+            })
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
                     genCommand.toJSON(),
                     helpCommand.toJSON(),
-                    spamCommand.toJSON(),
-                    genContextMenu.toJSON(),
-                    helpContextMenu.toJSON()
+                    spamCommand.toJSON()
                 ]
             })
         } catch (e) {

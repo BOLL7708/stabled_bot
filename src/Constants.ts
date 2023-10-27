@@ -23,7 +23,10 @@ export default class Constants {
     static OPTION_SPOILER = 'spoiler'
 
     static COMMAND_SPAM = 'spam'
+    static SUBCOMMAND_SPAM_THREAD = 'thread'
     static OPTION_SPAM_TITLE = 'title'
+    static SUBCOMMAND_SPAM_ON = 'on'
+    static SUBCOMMAND_SPAM_OFF = 'off'
 
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'
@@ -34,7 +37,4 @@ export default class Constants {
     static INPUT_NEW_NEGATIVE_PROMPT = 'new-negative-prompt'
 
     static COMMAND_HELP = 'help'
-
-    static CONTEXTMENU_GEN = 'Generate Images'
-    static CONTEXTMENU_HELP = 'Display Help'
 }

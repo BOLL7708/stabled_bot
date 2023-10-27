@@ -38,11 +38,11 @@ export default class DB {
         await db.exec('CREATE TABLE IF NOT EXISTS spam_threads (id INTEGER PRIMARY KEY, channel_id TEXT UNIQUE)')
     }
 
-    async registerSpamThread(channelId: string) {
+    async registerSpamThread(channelId: string): Promise<boolean> {
         const db = await this.getDb()
         if (db) {
             await this.ensureSpamThreadsTable()
-            const stmt = await db.prepare('INSERT INTO spam_threads (channel_id) VALUES (?)')
+            const stmt = await db.prepare('INSERT OR IGNORE INTO spam_threads (channel_id) VALUES (?)')
             const result = await stmt.run(channelId)
             if (result.lastID) return true
         }
@@ -55,6 +55,16 @@ export default class DB {
             await this.ensureSpamThreadsTable()
             const result = await db.get('SELECT * FROM spam_threads WHERE channel_id = ?', channelId)
             if (result) return true
+        }
+        return false
+    }
+
+    async unregisterSpamThread(channelId: string): Promise<boolean> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureSpamThreadsTable()
+            const result = await db.run('DELETE FROM spam_threads WHERE channel_id = ?', channelId)
+            if (result.changes > 0) return true
         }
         return false
     }
