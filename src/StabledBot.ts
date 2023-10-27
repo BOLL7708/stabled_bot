@@ -359,12 +359,13 @@ export default class StabledBot {
                         const subcommand = options.getSubcommand()
                         switch (subcommand) {
                             case Constants.SUBCOMMAND_SPAM_THREAD: {
+                                interaction.deferReply()
                                 if (channel instanceof DMChannel) {
                                     try {
-                                        interaction.reply({
-                                            ephemeral: true,
-                                            content: 'Spam threads can only be created from public channels.'
+                                        await channel.send({
+                                            content: 'Sorry, spam threads can only be created from public channels, you can still turn the feature on and off in a DM channel though.'
                                         })
+                                        await interaction.deleteReply()
                                     } catch (e) {
                                         console.error('Spam thread cannot be created iN DM:', e.message)
                                     }
@@ -379,18 +380,16 @@ export default class StabledBot {
                                         if (saved) {
                                             await this.setSpamState(privateChannel.id, true)
                                             try {
-                                                privateChannel.send({
+                                                await privateChannel.send({
                                                     content: `Welcome to your own spam channel ${user}, you can tag others in this thread to invite them!`
                                                 })
+                                                await interaction.deleteReply()
                                             } catch (e) {
                                                 console.error('Failed to send welcome message:', e.message)
                                             }
                                         } else {
                                             try {
-                                                await interaction.reply({
-                                                    ephemeral: true,
-                                                    content: 'Failed to create spam thread.'
-                                                })
+                                                interaction.deleteReply()
                                             } catch (e) {
                                                 console.error('Failed to create spam thread:', e.message)
                                             }
@@ -405,7 +404,7 @@ export default class StabledBot {
                                 try {
                                     await interaction.reply({
                                         ephemeral: true,
-                                        content: 'Spam ON!'
+                                        content: '✅ Spam mode was turned ON!'
                                     })
                                 } catch (e) {
                                     console.error('Spam ON failed:', e.message)
@@ -418,7 +417,7 @@ export default class StabledBot {
                                 try {
                                     await interaction.reply({
                                         ephemeral: true,
-                                        content: 'Spam OFF!'
+                                        content: '🛑 Spam mode was turned OFF!'
                                     })
                                 } catch (e) {
                                     console.error('Spam OFF failed:', e.message)
