@@ -120,7 +120,7 @@ export default class DiscordCom {
     // endregion
 
     // region Send
-    static async replyQueuedAndGetReference(message?: Message, interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction): Promise<MessageReference> {
+    static async replyQueuedAndGetReference(message?: Message, interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction, fromMention?: boolean): Promise<MessageReference> {
         let sentMessage: Message | undefined
         try {
             const queuedMessage = `${Constants.CONTENT_QUEUED}...`
@@ -133,7 +133,11 @@ export default class DiscordCom {
                 // Commands cannot be directly dismissed, so we reply directly to the interaction instead.
                 await interaction.reply({content: queuedMessage})
                 sentMessage = await interaction.fetchReply()
+            } else if (message && fromMention) {
+                // Re reply to mentions directly
+                sentMessage = await message.reply({content: queuedMessage})
             } else if (message) {
+                // To messages we simply post in the same channel.
                 sentMessage = await message.channel.send({content: queuedMessage})
             }
         } catch (e) {
@@ -156,7 +160,7 @@ export default class DiscordCom {
         return reference
     }
 
-    static async sendImagesAsReply(client: Client, options: SendImagesOptions) {
+    static async addImagesToResponse(client: Client, options: SendImagesOptions) {
         const message = await options.reference.getMessage(client)
         if (!message) throw('Could not get message.')
 

@@ -85,18 +85,30 @@ export default class StabledBot {
         else client.login(this._config.token).then()
 
         client.on(Events.MessageCreate, async message => {
-            const state = await this.getSpamState(message.channelId)
+            const spamEnabled = await this.getSpamState(message.channelId)
             const isDM = message.channel.isDMBased()
-            if (message.author.bot) return
-            if (!isDM && message.mentions.members.size > 0) return
-            if (state) {
-                const prompt = message.content
+            if (message.author.bot) return // Skip generating from bots
+            if (!isDM && spamEnabled && message.mentions.members.size > 0) return // Skip generating on replies
+            if (!message.content.trim().length) return // Skip empty messages, like ones with just an image
+            if (spamEnabled) {
+                await gen(message.content, 'Spam served', false)
+            } else {
+                const re = /<@!?(\d*?)>/gm
+                const matches = [...message.content.matchAll(re)]
+                const isTagged = matches.find(match => {
+                    return match[1] == client.user.id
+                })
+                if (isTagged) {
+                    await gen(message.content.replace(re, ''), 'A quickie', true)
+                }
+            }
+
+            async function gen(prompt: string, response: string, fromMention: boolean) {
                 const promptNegative = ''
-                const aspectRatio = '1:1'
-                const size = Utils.normalizeSize(aspectRatio)
+                const size = Utils.normalizeSize('1:1')
                 const count = 1
                 const spoiler = false
-                await runGen('Spam served', prompt, promptNegative, size, count, spoiler, message, undefined, undefined, false, false, false)
+                await runGen(response, prompt, promptNegative, size, count, spoiler, message, undefined, undefined, false, false, false, fromMention)
             }
         })
 
@@ -210,7 +222,7 @@ export default class StabledBot {
                                         true,
                                         false
                                     )
-                                    await DiscordCom.sendImagesAsReply(client, options)
+                                    await DiscordCom.addImagesToResponse(client, options)
                                 } else {
                                     await StabledBot.nodeError(client, reference)
                                 }
@@ -536,10 +548,11 @@ export default class StabledBot {
             seed?: ISeed,
             variations?: boolean,
             hires?: boolean,
-            details?: boolean
+            details?: boolean,
+            fromMention?: boolean
         ) {
             try {
-                const reference = await DiscordCom.replyQueuedAndGetReference(message, interaction)
+                const reference = await DiscordCom.replyQueuedAndGetReference(message, interaction, fromMention)
 
                 // Generate
                 Utils.log('Adding to queue', `${count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
@@ -560,7 +573,7 @@ export default class StabledBot {
                     // Send to Discord
                     Utils.log('Finished generating', `${Object.keys(images).length} image(s)`, reference.getConsoleLabel(), Color.FgGreen)
                     const user = await reference.getUser(client)
-                    const reply = await DiscordCom.sendImagesAsReply(client, new SendImagesOptions(
+                    const reply = await DiscordCom.addImagesToResponse(client, new SendImagesOptions(
                         prompt,
                         negativePrompt,
                         size,
@@ -651,6 +664,7 @@ export default class StabledBot {
         }
         return state
     }
+
     private async setSpamState(channelId: string, state: boolean) {
         this._spamTheadStates.set(channelId, state)
         state ? await this._db.registerSpamThread(channelId) : await this._db.unregisterSpamThread(channelId)
