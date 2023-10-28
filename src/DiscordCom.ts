@@ -4,7 +4,7 @@ import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
 import {IStringDictionary} from './Utils.js'
 import {MessageDerivedData} from './Tasks.js'
-import {ImageGenerationOptions} from './StabledAPI.js'
+import {QueueItem} from './StabledAPI.js'
 
 export default class DiscordCom {
     private static _rest: REST
@@ -163,19 +163,15 @@ export default class DiscordCom {
 
     static async addImagesToResponse(
         client: Client,
-        reference: MessageReference,
-        options: ImageGenerationOptions,
-        images: IStringDictionary,
-        messageStr: string,
-        spoiler: boolean,
+        item: QueueItem
     ) {
-        const message = await reference.getMessage(client)
+        const message = await item.reference.getMessage(client)
         if (!message) throw('Could not get message.')
 
-        const attachments = Object.entries(images).map(([fileName, imageData]) => {
+        const attachments = Object.entries(item.postOptions.images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {
                 name: `${fileName}.png`
-            }).setSpoiler(spoiler)
+            }).setSpoiler(item.postOptions.spoiler)
         })
         const row1 = new ActionRowBuilder<ButtonBuilder>()
         const row2 = new ActionRowBuilder<ButtonBuilder>()
@@ -212,13 +208,13 @@ export default class DiscordCom {
 
         // Components
         const components: ActionRowBuilder<ButtonBuilder>[] = []
-        if (options.hires) {
+        if (item.imageOptions.hires) {
             row1.addComponents(deleteButton)
             components.push(row1)
-        } else if (options.details) {
+        } else if (item.imageOptions.details) {
             row1.addComponents(deleteButton, infoButton, upscaleButton)
             components.push(row1)
-        } else if (options.variation) {
+        } else if (item.imageOptions.variation) {
             row1.addComponents(deleteButton, infoButton, upscaleButton, detailButton)
             components.push(row1)
         } else {
@@ -230,7 +226,7 @@ export default class DiscordCom {
         // Reply
         try {
             return await message.edit({
-                content: messageStr,
+                content: item.postOptions.message,
                 files: attachments,
                 components
             })
@@ -447,6 +443,12 @@ export class MessageReference {
 // endregion
 
 // region Data Classes
+
+export class PostOptions {
+    public message: string = ''
+    public spoiler: boolean = false
+    public images: IStringDictionary = {}
+}
 
 export class PromptUserOptions {
     constructor(

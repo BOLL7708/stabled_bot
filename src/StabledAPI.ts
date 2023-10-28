@@ -1,7 +1,7 @@
 import axios, {AxiosInstance, AxiosResponse} from 'axios'
-import {ESource, MessageReference} from './DiscordCom.js'
+import {MessageReference, PostOptions} from './DiscordCom.js'
 import Config from './Config.js'
-import Utils, {IStringDictionary} from './Utils.js'
+import Utils, {Color, IStringDictionary} from './Utils.js'
 import {ISeed} from './DiscordUtils.js'
 
 export default class StabledAPI {
@@ -9,6 +9,7 @@ export default class StabledAPI {
     private static _generatedImageCount: number = 0
     private static _queueIndex = 0
     private static _queue: Map<number, QueueItem> = new Map()
+    private static _listeners: IStabledResultListener[] = []
 
     // region Init
     private static async ensureAPI() {
@@ -27,21 +28,34 @@ export default class StabledAPI {
 
     // region Queued Methods
 
-    // TODO: Add an enqueueGeneration method here, so we enqueue stuff BEFORE we request it from Stable Diffusion,
-    //  this to try to avoid the timeout for as much as possible.
-    //  I'm thinking we will not submit something until it is at 1/1 in the queue.
+    static enqueueGeneration(item: QueueItem) {
+        this.registerQueueItem(item)
+        Utils.log('Enqueued', `${item.imageOptions.count} image(s)`, item.reference.getConsoleLabel(), Color.FgMagenta)
+    }
 
-    static async generateImages(reference: MessageReference, options: ImageGenerationOptions): Promise<IStringDictionary> {
+    static registerResultListener(listener: IStabledResultListener) {
+        this._listeners.push(listener)
+    }
+
+    private static notifyResultListeners(item: QueueItem) {
+        Utils.log('Finished', `${Object.keys(item.postOptions.images).length} image(s)`, item.reference.getConsoleLabel(), Color.FgGreen)
+        for (const listener of this._listeners) {
+            listener(item)
+        }
+    }
+
+    static async generateImages(item: QueueItem) {
+        Utils.log('Starting', `${item.imageOptions.count} image(s)`, item.reference.getConsoleLabel(), Color.FgYellow)
         await this.ensureAPI()
-        const [width, height] = options.size.split('x')
+        const [width, height] = item.imageOptions.size.split('x')
 
-        const seed = Number(options.predefinedSeed?.seed)
-        const subseed = Number(options.predefinedSeed?.variantSeed)
+        const seed = Number(item.imageOptions.predefinedSeed?.seed)
+        const subseed = Number(item.imageOptions.predefinedSeed?.variantSeed)
         const body = {
-            prompt: options.prompt,
-            negative_prompt: options.negativePrompt,
-            n_iter: options.count,
-            steps: options.details ? 80 : 20,
+            prompt: item.imageOptions.prompt,
+            negative_prompt: item.imageOptions.negativePrompt,
+            n_iter: item.imageOptions.count,
+            steps: item.imageOptions.details ? 80 : 20,
             width,
             height,
             seed: isNaN(seed) ? -1 : seed
@@ -52,33 +66,27 @@ export default class StabledAPI {
             body['subseed'] = subseed
             body['subseed_strength'] = 0.1 // TODO: Move to config
         }
-        if (options.variation) {
+        if (item.imageOptions.variation) {
             body['subseed'] = -1
             body['subseed_strength'] = 0.1
         }
-        if (options.hires) {
+        if (item.imageOptions.hires) {
             body['enable_hr'] = true
             body['hr_scale'] = 2
             body['hr_upscaler'] = 'Latent'
             body['denoising_strength'] = 0.7
         }
 
-        let source: ESource = ESource.Generate
-        if (options.predefinedSeed) source = ESource.Recycle
-        if (options.hires) source = ESource.Upres
-        if (options.variation) source = ESource.Variation
-        if (options.details) source = ESource.Detail
-        reference.source = source
-
-        const queueIndex = this.registerQueueItem(new QueueItem(reference, options))
+        // Do the request
         let response: AxiosResponse<IStabledResponse>
         try {
             response = await this._api.post(`txt2img`, body)
         } catch (e) {
             console.error('Error queueing up image generation:', e.message)
         }
-        this.unregisterQueueItem(queueIndex)
+        this.unregisterQueueItem(item)
 
+        // Get images from response and inject them into the item
         if (response?.data) {
             const data = response.data
             const info = JSON.parse(data.info) as IStabledResponseInfo
@@ -90,41 +98,39 @@ export default class StabledAPI {
                 const serial = Utils.getSerial(seed, subseedStrength > 0 ? subseed : '', ++this._generatedImageCount)
                 imageDic[serial] = image
             }
-            return imageDic
-        } else {
-            return {}
+            item.postOptions.images = imageDic
         }
+        this.notifyResultListeners(item)
     }
 
     // endregion
     static async upscaleImageData(
-        reference: MessageReference,
-        options: ImageGenerationOptions,
-        data: string,
+        item: QueueItem,
         upscaleFactor: number,
         fileName: string
     ) {
-        const body = {
-            upscaling_resize: upscaleFactor,
-            upscaler_1: 'Lanczos',
-            upscaler_2: 'None',
-            extras_upscaler_2_visibility: 0,
-            upscale_first: false,
-            image: data
-        }
-
-        const queueIndex = this.registerQueueItem(new QueueItem(reference, options))
-        let response: IStringDictionary = {}
-        try {
-            const upscaleResponse = await this._api.post(`extra-single-image`, body)
-            if (upscaleResponse.data) {
-                response = {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
-            }
-        } catch (e) {
-            console.error('Up-scaling failed', e.message)
-        }
-        this.unregisterQueueItem(queueIndex)
-        return response
+        return // TODO
+        // const body = {
+        //     upscaling_resize: upscaleFactor,
+        //     upscaler_1: 'Lanczos',
+        //     upscaler_2: 'None',
+        //     extras_upscaler_2_visibility: 0,
+        //     upscale_first: false,
+        //     image: data
+        // }
+        //
+        // const queueIndex = this.registerQueueItem(item)
+        // let response: IStringDictionary = {}
+        // try {
+        //     const upscaleResponse = await this._api.post(`extra-single-image`, body)
+        //     if (upscaleResponse.data) {
+        //         response = {[`${fileName}_${upscaleFactor}x`]: upscaleResponse.data.image}
+        //     }
+        // } catch (e) {
+        //     console.error('Up-scaling failed', e.message)
+        // }
+        // this.unregisterQueueItem(queueIndex)
+        // return response
     }
 
     // region Non-queued Methods
@@ -157,16 +163,16 @@ export default class StabledAPI {
     // region Queue Handling
     static registerQueueItem(item: QueueItem) {
         const index = ++this._queueIndex
+        item.index = index
         this._queue.set(index, item)
-        return index
     }
 
-    static unregisterQueueItem(index: number) {
-        this._queue.delete(index)
+    static unregisterQueueItem(item: QueueItem) {
+        this._queue.delete(item.index)
     }
 
     static getQueueEntries() {
-        return this._queue.entries()
+        return this._queue.values()
     }
 
     static getQueueSize(): number {
@@ -204,10 +210,13 @@ export class ImageGenerationOptions {
     }
 }
 
-class QueueItem {
+export class QueueItem {
+    public index: number = 0
+
     constructor(
         public reference: MessageReference,
-        public options: ImageGenerationOptions
+        public imageOptions: ImageGenerationOptions,
+        public postOptions: PostOptions
     ) {
     }
 }
@@ -328,6 +337,10 @@ export interface IPNGInfoResponse {
     items: {
         parameters: string
     }
+}
+
+export interface IStabledResultListener {
+    (item: QueueItem): void
 }
 
 // endregion

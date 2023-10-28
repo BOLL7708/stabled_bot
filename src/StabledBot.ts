@@ -5,8 +5,8 @@ import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
 import Utils, {Color} from './Utils.js'
-import DiscordCom, {ESource, MessageReference, PromptUserOptions} from './DiscordCom.js'
-import StabledAPI, {ImageGenerationOptions} from './StabledAPI.js'
+import DiscordCom, {ESource, MessageReference, PostOptions, PromptUserOptions} from './DiscordCom.js'
+import StabledAPI, {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
 import DiscordUtils, {IAttachment} from './DiscordUtils.js'
 import fs from 'fs/promises'
 import DB from './DB.js'
@@ -39,12 +39,23 @@ export default class StabledBot {
         dns.setDefaultResultOrder('ipv4first');
         this._db = new DB()
 
+        // Register Stabled result listener
+        StabledAPI.registerResultListener(async (item) => {
+            // Send to Discord
+            try {
+                await DiscordCom.addImagesToResponse(client, item)
+            } catch (e) {
+                console.error('Failed to send images:', e.message)
+                await StabledBot.nodeError(client, item.reference)
+            }
+        })
+
         // Update bot status
         const loadProgressJob = new CronJob(
             '*/5 * * * * *',
             async () => {
                 try {
-                    await Tasks.updateProgressStatus(client)
+                    await Tasks.updateProgressAndStartGenerations(client)
                 } catch (e) {
                     console.error('Progress failed to update:', e.message)
                 }
@@ -106,7 +117,7 @@ export default class StabledBot {
                 const genOptions = new ImageGenerationOptions()
                 genOptions.prompt = prompt
                 genOptions.count = 1
-                await runGen(genOptions, response, false, message, undefined, fromMention)
+                await enqueueGen(genOptions, response, false, message, undefined, fromMention)
             }
         })
 
@@ -176,7 +187,7 @@ export default class StabledBot {
                             genOptions.count = 4
                             genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
                             genOptions.variation = true
-                            await runGen(genOptions, 'Here are the variations', useData.spoiler, undefined, interaction)
+                            await enqueueGen(genOptions, 'Here are the variations', useData.spoiler, undefined, interaction)
                         } else {
                             await StabledBot.replyDataError(interaction)
                         }
@@ -192,32 +203,32 @@ export default class StabledBot {
                     }
                     // @allowFallthrough
                     case Constants.BUTTON_UPSCALE_CHOICE: {
-                        const buttonData = this.getDataForButton(payload)
-                        const useData = buttonData.data ?? data
-                        if (useData) {
-                            const reference = await DiscordCom.replyQueuedAndGetReference(undefined, interaction)
-                            reference.source = ESource.Upscale
-                            try {
-                                const genOptions = new ImageGenerationOptions()
-                                genOptions.count = 1
-                                genOptions.hires = true
-                                Tasks.updateQueues()
-                                const images = await Tasks.getAttachmentAndUpscale(client, reference, genOptions, useData.messageId, buttonData.buttonIndex)
-                                Tasks.updateQueues()
-                                const user = await reference.getUser(client)
-                                if (Object.keys(images).length) {
-                                    await DiscordCom.addImagesToResponse(client, reference, genOptions, images, `Here is the up-scaled image ${user}!`, useData.spoiler)
-                                } else {
-                                    await StabledBot.nodeError(client, reference)
-                                }
-                            } catch (e) {
-                                const message = await reference.getMessage(client)
-                                await message?.delete()
-                                console.error(e)
-                            }
-                        } else {
-                            await StabledBot.replyDataError(interaction)
-                        }
+                        // const buttonData = this.getDataForButton(payload)
+                        // const useData = buttonData.data ?? data
+                        // if (useData) {
+                        //     const reference = await DiscordCom.replyQueuedAndGetReference(undefined, interaction)
+                        //     reference.source = ESource.Upscale
+                        //     try {
+                        //         const imageOptions = new ImageGenerationOptions()
+                        //         imageOptions.count = 1
+                        //         imageOptions.hires = true
+                        //         Tasks.updateQueues()
+                        //         const images = await Tasks.getAttachmentAndUpscale(client, reference, imageOptions, useData.messageId, buttonData.buttonIndex)
+                        //         Tasks.updateQueues()
+                        //         const user = await reference.getUser(client)
+                        //         if (Object.keys(images).length) {
+                        //             await DiscordCom.addImagesToResponse(client, reference, imageOptions, images, `Here is the up-scaled image ${user}!`, useData.spoiler)
+                        //         } else {
+                        //             await StabledBot.nodeError(client, reference)
+                        //         }
+                        //     } catch (e) {
+                        //         const message = await reference.getMessage(client)
+                        //         await message?.delete()
+                        //         console.error(e)
+                        //     }
+                        // } else {
+                        //     await StabledBot.replyDataError(interaction)
+                        // }
                         break
                     }
                     case Constants.BUTTON_DETAIL: {
@@ -237,7 +248,7 @@ export default class StabledBot {
                             genOptions.count = 1
                             genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
                             genOptions.details = true
-                            await runGen(genOptions, 'Here are more details', useData.spoiler, undefined, interaction)
+                            await enqueueGen(genOptions, 'Here are more details', useData.spoiler, undefined, interaction)
                         } else {
                             await StabledBot.replyDataError(interaction)
                         }
@@ -310,7 +321,7 @@ export default class StabledBot {
                         genOptions.count = countValue ? Number(countValue) : 4
                         const spoiler = !!options.get(Constants.OPTION_SPOILER)?.value
                         if (genOptions.prompt.length > 0) {
-                            await runGen(genOptions, 'Here you go', spoiler, undefined, interaction)
+                            await enqueueGen(genOptions, 'Here you go', spoiler, undefined, interaction)
                         } else {
                             const messageData = new MessageDerivedData()
                             messageData.genOptions = genOptions
@@ -445,7 +456,7 @@ export default class StabledBot {
                         const data = this.getCachedData(index)
                         const genOptions = getPromptValues(interaction)
                         genOptions.predefinedSeed = data?.seeds.shift()
-                        await runGen(
+                        await enqueueGen(
                             genOptions,
                             'Here is the remix',
                             data?.spoiler ?? false,
@@ -457,7 +468,7 @@ export default class StabledBot {
                     case Constants.PROMPT_REDO: {
                         const data = this.getCachedData(index)
                         const genOptions = getPromptValues(interaction)
-                        await runGen(
+                        await enqueueGen(
                             genOptions,
                             'Here you go again',
                             data?.spoiler ?? false,
@@ -468,7 +479,7 @@ export default class StabledBot {
                     }
                     case Constants.PROMPT_PROMPT: {
                         const genOptions = getPromptValues(interaction)
-                        await runGen(
+                        await enqueueGen(
                             genOptions,
                             'Here it is',
                             false,
@@ -499,10 +510,8 @@ export default class StabledBot {
             return genOptions
         }
 
-        // TODO: Generalize this input as one data class that is instantiated with defaults, then provided as one parameter.
-        //  Make other functions take that SAME object, instead of repeating all the parameters, and then some additional options for things that won't fit.
-        async function runGen(
-            genOptions: ImageGenerationOptions,
+        async function enqueueGen(
+            imageOptions: ImageGenerationOptions,
             messageStart: string,
             spoiler: boolean,
             message?: Message,
@@ -511,27 +520,21 @@ export default class StabledBot {
         ) {
             try {
                 const reference = await DiscordCom.replyQueuedAndGetReference(message, interaction, fromMention)
+                let source: ESource = ESource.Generate
+                if (imageOptions.predefinedSeed) source = ESource.Recycle
+                if (imageOptions.hires) source = ESource.Upres
+                if (imageOptions.variation) source = ESource.Variation
+                if (imageOptions.details) source = ESource.Detail
+                reference.source = source
 
                 // Generate
-                Utils.log('Adding to queue', `${genOptions.count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
+                const postOptions = new PostOptions()
+                const user = await reference.getUser(client)
+                postOptions.message = `${messageStart} ${user}!`
+                postOptions.spoiler = spoiler
+                const queueItem = new QueueItem(reference, imageOptions, postOptions)
+                await StabledAPI.enqueueGeneration(queueItem)
                 Tasks.updateQueues()
-                const images = await StabledAPI.generateImages(reference, genOptions)
-                Tasks.updateQueues()
-                if (Object.keys(images).length) {
-                    // Send to Discord
-                    Utils.log('Finished generating', `${Object.keys(images).length} image(s)`, reference.getConsoleLabel(), Color.FgGreen)
-                    const user = await reference.getUser(client)
-                    const reply = await DiscordCom.addImagesToResponse(
-                        client,
-                        reference,
-                        genOptions,
-                        images,
-                        `${messageStart} ${user}!`,
-                        spoiler
-                    )
-                } else {
-                    await StabledBot.nodeError(client, reference)
-                }
             } catch (e) {
                 console.error(e)
             }

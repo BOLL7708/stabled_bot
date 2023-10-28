@@ -13,12 +13,13 @@ export default class Tasks {
         messageId: string,
         buttonIndex: number | string
     ): Promise<IStringDictionary> {
-        const channel = await reference.getChannel(client)
-        if (!channel) throw('Could not get channel.')
-        const attachment = await DiscordUtils.getAttachment(channel, messageId, buttonIndex)
-        const fileName = attachment.name.replace('.png', '')
-        const upscaleFactor = 4 // TODO: Make this configurable
-        return await StabledAPI.upscaleImageData(reference, options, attachment.data, upscaleFactor, fileName)
+        return // TODO
+        // const channel = await reference.getChannel(client)
+        // if (!channel) throw('Could not get channel.')
+        // const attachment = await DiscordUtils.getAttachment(channel, messageId, buttonIndex)
+        // const fileName = attachment.name.replace('.png', '')
+        // const upscaleFactor = 4 // TODO: Make this configurable
+        // return await StabledAPI.upscaleImageData(reference, options, attachment.data, upscaleFactor, fileName)
     }
 
     static async getDataForMessage(message: Message): Promise<MessageDerivedData> {
@@ -52,27 +53,23 @@ export default class Tasks {
 
     private static _currentStatus: string = ''
     private static _currentActivity: string = ''
-    private static _currentTick: boolean = false
     private static _updateQueues: boolean = false
 
     static updateQueues() {
         this._updateQueues = true
     }
 
-    static async updateProgressStatus(client: Client | undefined) {
+    static async updateProgressAndStartGenerations(client: Client | undefined) {
         const progress = await StabledAPI.getProgress()
         if (!progress) throw('Could not get progress.')
-        if (progress.state.job_count <= 0) {
-            StabledAPI.clearQueue()
-        }
 
+        // Update presence
         const queueCount = StabledAPI.getQueueSize()
-        this._currentTick = !this._currentTick
         const idle = progress.state.job_count <= 0
         const newStatus = idle ? 'online' : 'dnd'
         const newActivity = idle
             ? 'Idle 💤'
-            : `Work ${this._currentTick ? '⌛' : '⏳'}:${Math.round(100 * progress.progress)}% 📋:${queueCount}`
+            : `Work ⏳:${Math.round(100 * progress.progress)}% 📋:${queueCount}`
         if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
             this._currentStatus = newStatus
             this._currentActivity = newActivity
@@ -88,22 +85,28 @@ export default class Tasks {
                 console.error('Presence update failed.', e.message)
             }
         }
+
+        // Update progress message
         const queueEntries = StabledAPI.getQueueEntries()
         let currentItem = queueEntries.next()
-        const queueItem = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
+        const queueItem = currentItem?.value
+        if (idle && queueItem) {
+            StabledAPI.generateImages(queueItem).then()
+        }
 
         const message = await queueItem?.reference?.getMessage(client as Client) // This will throw, which is fine.
         await message?.edit({
             content: await Utils.progressBarMessage(progress.progress)
         })
 
+        // Update queue messages
         let placeInQueue = 0
         if (this._updateQueues) {
             this._updateQueues = false
             while (currentItem?.value && !currentItem?.value?.done) {
                 currentItem = queueEntries.next()
                 if (currentItem.value) {
-                    const queueItem = currentItem.value.length == 2 ? currentItem.value[1] : undefined
+                    const queueItem = currentItem.value
                     try {
                         const message = await queueItem.reference.getMessage(client)
                         await message?.edit({
