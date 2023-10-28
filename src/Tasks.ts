@@ -2,17 +2,23 @@ import {ActivityType, APIEmbed, ApplicationCommandOptionType, ButtonStyle, Clien
 import Constants from './Constants.js'
 import Utils, {IStringDictionary} from './Utils.js'
 import {MessageReference} from './DiscordCom.js'
-import StabledAPI from './StabledAPI.js'
+import StabledAPI, {ImageGenerationOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
 
 export default class Tasks {
-    static async getAttachmentAndUpscale(client: Client, reference: MessageReference, messageId: string, buttonIndex: number | string): Promise<IStringDictionary> {
+    static async getAttachmentAndUpscale(
+        client: Client,
+        reference: MessageReference,
+        options: ImageGenerationOptions,
+        messageId: string,
+        buttonIndex: number | string
+    ): Promise<IStringDictionary> {
         const channel = await reference.getChannel(client)
         if (!channel) throw('Could not get channel.')
         const attachment = await DiscordUtils.getAttachment(channel, messageId, buttonIndex)
         const fileName = attachment.name.replace('.png', '')
         const upscaleFactor = 4 // TODO: Make this configurable
-        return await StabledAPI.upscaleImageData(reference, attachment.data, upscaleFactor, fileName)
+        return await StabledAPI.upscaleImageData(reference, options, attachment.data, upscaleFactor, fileName)
     }
 
     static async getDataForMessage(message: Message): Promise<MessageDerivedData> {
@@ -23,7 +29,7 @@ export default class Tasks {
         } catch (e) {
             // console.error('Could not get user id:', e.message)
         }
-        data.count = message.attachments.size
+        data.genOptions.count = message.attachments.size
         data.seeds = DiscordUtils.getAttachmentSeedData(message.attachments.values())
         let attachment: IAttachment
         try {
@@ -36,9 +42,9 @@ export default class Tasks {
             const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
             const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
             if (pngInfo) {
-                data.prompt = pngInfo.prompt
-                data.negativePrompt = pngInfo.negativePrompt
-                data.size = pngInfo.size
+                data.genOptions.prompt = pngInfo.prompt
+                data.genOptions.negativePrompt = pngInfo.negativePrompt
+                data.genOptions.size = pngInfo.size
             }
         }
         return data
@@ -84,10 +90,10 @@ export default class Tasks {
         }
         const queueEntries = StabledAPI.getQueueEntries()
         let currentItem = queueEntries.next()
-        const reference = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
+        const queueItem = currentItem?.value?.length == 2 ? currentItem.value[1] : undefined
 
-        const message = await reference?.getMessage(client as Client) // This will throw, which is fine.
-        message?.edit({
+        const message = await queueItem?.reference?.getMessage(client as Client) // This will throw, which is fine.
+        await message?.edit({
             content: await Utils.progressBarMessage(progress.progress)
         })
 
@@ -97,11 +103,11 @@ export default class Tasks {
             while (currentItem?.value && !currentItem?.value?.done) {
                 currentItem = queueEntries.next()
                 if (currentItem.value) {
-                    const reference = currentItem.value.length == 2 ? currentItem.value[1] : undefined
+                    const queueItem = currentItem.value.length == 2 ? currentItem.value[1] : undefined
                     try {
-                        const message = await reference.getMessage(client)
-                        message?.edit({
-                            content: `${Constants.CONTENT_QUEUED} ${reference.source}... \`${++placeInQueue}/${queueCount - 1}\``
+                        const message = await queueItem.reference.getMessage(client)
+                        await message?.edit({
+                            content: `${Constants.CONTENT_QUEUED} ${queueItem.reference.source}... \`${++placeInQueue}/${queueCount - 1}\``
                         })
                     } catch (e) {
                         console.error('Queue update failed:', e.message)
@@ -115,12 +121,9 @@ export default class Tasks {
 export class MessageDerivedData {
     public messageId: string = ''
     public userId: string = ''
-    public prompt: string = ''
-    public negativePrompt: string = ''
-    public count: number = 4
-    public size: string = '512x512'
-    public spoiler: boolean = false
     public seeds: ISeed[] = []
+    public genOptions: ImageGenerationOptions = new ImageGenerationOptions()
+    public spoiler: boolean = false
 }
 
 export type TChannelType = TextChannel | DMChannel

@@ -4,6 +4,7 @@ import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
 import {IStringDictionary} from './Utils.js'
 import {MessageDerivedData} from './Tasks.js'
+import {ImageGenerationOptions} from './StabledAPI.js'
 
 export default class DiscordCom {
     private static _rest: REST
@@ -160,14 +161,21 @@ export default class DiscordCom {
         return reference
     }
 
-    static async addImagesToResponse(client: Client, options: SendImagesOptions) {
-        const message = await options.reference.getMessage(client)
+    static async addImagesToResponse(
+        client: Client,
+        reference: MessageReference,
+        options: ImageGenerationOptions,
+        images: IStringDictionary,
+        messageStr: string,
+        spoiler: boolean,
+    ) {
+        const message = await reference.getMessage(client)
         if (!message) throw('Could not get message.')
 
-        const attachments = Object.entries(options.images).map(([fileName, imageData]) => {
+        const attachments = Object.entries(images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {
                 name: `${fileName}.png`
-            }).setSpoiler(options.spoiler)
+            }).setSpoiler(spoiler)
         })
         const row1 = new ActionRowBuilder<ButtonBuilder>()
         const row2 = new ActionRowBuilder<ButtonBuilder>()
@@ -210,7 +218,7 @@ export default class DiscordCom {
         } else if (options.details) {
             row1.addComponents(deleteButton, infoButton, upscaleButton)
             components.push(row1)
-        } else if (options.variations) {
+        } else if (options.variation) {
             row1.addComponents(deleteButton, infoButton, upscaleButton, detailButton)
             components.push(row1)
         } else {
@@ -222,7 +230,7 @@ export default class DiscordCom {
         // Reply
         try {
             return await message.edit({
-                content: options.message,
+                content: messageStr,
                 files: attachments,
                 components
             })
@@ -332,7 +340,7 @@ export default class DiscordCom {
         const textInput = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_PROMPT)
             .setLabel("The positive prompt, include elements.")
-            .setValue(options.data.prompt)
+            .setValue(options.data.genOptions.prompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         const promptRow = new ActionRowBuilder<TextInputBuilder>()
@@ -340,7 +348,7 @@ export default class DiscordCom {
         const textInput2 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_NEGATIVE_PROMPT)
             .setLabel("The negative prompt, exclude elements.")
-            .setValue(options.data.negativePrompt)
+            .setValue(options.data.genOptions.negativePrompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false)
         const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
@@ -348,7 +356,7 @@ export default class DiscordCom {
         const textInput3 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_SIZE)
             .setLabel("The size of the generated images.")
-            .setValue(options.data.size)
+            .setValue(options.data.genOptions.size)
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
         const promptRow3 = new ActionRowBuilder<TextInputBuilder>()
@@ -356,7 +364,7 @@ export default class DiscordCom {
         const textInput4 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_COUNT)
             .setLabel("The number of images to generate, 1-10.")
-            .setValue(options.data.count.toString())
+            .setValue(options.data.genOptions.count.toString())
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
         const promptRow4 = new ActionRowBuilder<TextInputBuilder>()
@@ -439,22 +447,6 @@ export class MessageReference {
 // endregion
 
 // region Data Classes
-export class SendImagesOptions {
-    constructor(
-        public prompt: string = 'random waste',
-        public negativePrompt: string = '',
-        public size: string = '512x512',
-        public count: number = 4,
-        public spoiler: boolean = false,
-        public images: IStringDictionary = {},
-        public reference: MessageReference,
-        public message: string = '',
-        public variations: boolean | undefined,
-        public hires: boolean | undefined,
-        public details: boolean | undefined
-    ) {
-    }
-}
 
 export class PromptUserOptions {
     constructor(

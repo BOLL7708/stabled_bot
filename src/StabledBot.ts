@@ -5,9 +5,9 @@ import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
 import Utils, {Color} from './Utils.js'
-import DiscordCom, {ESource, MessageReference, PromptUserOptions, SendImagesOptions} from './DiscordCom.js'
-import StabledAPI, {GenerateImagesOptions} from './StabledAPI.js'
-import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
+import DiscordCom, {ESource, MessageReference, PromptUserOptions} from './DiscordCom.js'
+import StabledAPI, {ImageGenerationOptions} from './StabledAPI.js'
+import DiscordUtils, {IAttachment} from './DiscordUtils.js'
 import fs from 'fs/promises'
 import DB from './DB.js'
 
@@ -86,29 +86,27 @@ export default class StabledBot {
 
         client.on(Events.MessageCreate, async message => {
             const spamEnabled = await this.getSpamState(message.channelId)
-            const isDM = message.channel.isDMBased()
             if (message.author.bot) return // Skip generating from bots
-            if (!isDM && spamEnabled && message.mentions.members.size > 0) return // Skip generating on replies
             if (!message.content.trim().length) return // Skip empty messages, like ones with just an image
-            if (spamEnabled) {
+
+            const reTags = /<@!?(\d*?)>/gm
+            const allTags = [...message.content.matchAll(reTags)].map(match => match[1])
+            const botTags = allTags.filter(group => {
+                return group == client.user.id
+            }) ?? []
+
+            if (spamEnabled && allTags.length == 0) {
                 await gen(message.content, 'Spam served', false)
-            } else {
-                const re = /<@!?(\d*?)>/gm
-                const matches = [...message.content.matchAll(re)]
-                const isTagged = matches.find(match => {
-                    return match[1] == client.user.id
-                })
-                if (isTagged) {
-                    await gen(message.content.replace(re, ''), 'A quickie', true)
-                }
+            } else if (botTags.length > 0) {
+                const prompt = message.content.replaceAll(reTags, '')
+                await gen(prompt, 'A quickie', true)
             }
 
             async function gen(prompt: string, response: string, fromMention: boolean) {
-                const promptNegative = ''
-                const size = Utils.normalizeSize('1:1')
-                const count = 1
-                const spoiler = false
-                await runGen(response, prompt, promptNegative, size, count, spoiler, message, undefined, undefined, false, false, false, fromMention)
+                const genOptions = new ImageGenerationOptions()
+                genOptions.prompt = prompt
+                genOptions.count = 1
+                await runGen(genOptions, response, false, message, undefined, fromMention)
             }
         })
 
@@ -162,10 +160,10 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_VARY: {
-                        if (data.count > 1) {
+                        if (data.genOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.genOptions.count, interaction)
                             break
                         }
                     }
@@ -174,28 +172,21 @@ export default class StabledBot {
                         const buttonData = this.getDataForButton(payload)
                         const useData = buttonData.data ?? data
                         if (useData) {
-                            await runGen(
-                                'Here are the variations ',
-                                useData.prompt,
-                                useData.negativePrompt,
-                                useData.size,
-                                4,
-                                useData.spoiler,
-                                undefined,
-                                interaction,
-                                useData.seeds[buttonData.buttonIndex],
-                                true
-                            )
+                            const genOptions = ImageGenerationOptions.newFrom(useData.genOptions)
+                            genOptions.count = 4
+                            genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
+                            genOptions.variation = true
+                            await runGen(genOptions, 'Here are the variations', useData.spoiler, undefined, interaction)
                         } else {
                             await StabledBot.replyDataError(interaction)
                         }
                         break
                     }
                     case Constants.BUTTON_UPSCALE: {
-                        if (data.count > 1) {
+                        if (data.genOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.genOptions.count, interaction)
                             break
                         }
                     }
@@ -207,22 +198,15 @@ export default class StabledBot {
                             const reference = await DiscordCom.replyQueuedAndGetReference(undefined, interaction)
                             reference.source = ESource.Upscale
                             try {
+                                const genOptions = new ImageGenerationOptions()
+                                genOptions.count = 1
+                                genOptions.hires = true
                                 Tasks.updateQueues()
-                                const images = await Tasks.getAttachmentAndUpscale(client, reference, useData.messageId, buttonData.buttonIndex)
+                                const images = await Tasks.getAttachmentAndUpscale(client, reference, genOptions, useData.messageId, buttonData.buttonIndex)
                                 Tasks.updateQueues()
                                 const user = await reference.getUser(client)
                                 if (Object.keys(images).length) {
-                                    const options = new SendImagesOptions(
-                                        '', '', '', 1,
-                                        useData.spoiler,
-                                        images,
-                                        reference,
-                                        `Here is the up-scaled image ${user}!`,
-                                        false,
-                                        true,
-                                        false
-                                    )
-                                    await DiscordCom.addImagesToResponse(client, options)
+                                    await DiscordCom.addImagesToResponse(client, reference, genOptions, images, `Here is the up-scaled image ${user}!`, useData.spoiler)
                                 } else {
                                     await StabledBot.nodeError(client, reference)
                                 }
@@ -237,10 +221,10 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_DETAIL: {
-                        if (data.count > 1) {
+                        if (data.genOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.genOptions.count, interaction)
                             break
                         }
                     }
@@ -249,31 +233,21 @@ export default class StabledBot {
                         const buttonData = this.getDataForButton(payload)
                         const useData = buttonData.data ?? data
                         if (useData) {
-                            const seed = useData.seeds[buttonData.buttonIndex]
-                            await runGen(
-                                'Here are more details ',
-                                useData.prompt,
-                                useData.negativePrompt,
-                                useData.size,
-                                1,
-                                useData.spoiler,
-                                undefined,
-                                interaction,
-                                seed,
-                                false,
-                                false,
-                                true
-                            )
+                            const genOptions = ImageGenerationOptions.newFrom(useData.genOptions)
+                            genOptions.count = 1
+                            genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
+                            genOptions.details = true
+                            await runGen(genOptions, 'Here are more details', useData.spoiler, undefined, interaction)
                         } else {
                             await StabledBot.replyDataError(interaction)
                         }
                         break
                     }
                     case Constants.BUTTON_INFO: {
-                        if (data.count > 1) {
+                        if (data.genOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_INFO_CHOICE, 'Pick which image to get information for:', nextIndex, data.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_INFO_CHOICE, 'Pick which image to get information for:', nextIndex, data.genOptions.count, interaction)
                             break
                         }
                     }
@@ -327,21 +301,19 @@ export default class StabledBot {
                 const {commandName, options, user} = interaction
                 switch (commandName) {
                     case Constants.COMMAND_GEN: {
-                        const prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
-                        const promptNegative = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
+                        const genOptions = new ImageGenerationOptions()
+                        genOptions.prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
+                        genOptions.negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
                         const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
-                        const size = Utils.normalizeSize(aspectRatio)
+                        genOptions.size = Utils.normalizeSize(aspectRatio)
                         const countValue = options.get(Constants.OPTION_COUNT)?.value
-                        const count = countValue ? Number(countValue) : 4
+                        genOptions.count = countValue ? Number(countValue) : 4
                         const spoiler = !!options.get(Constants.OPTION_SPOILER)?.value
-                        if (prompt.length > 0) {
-                            await runGen('Here you go', prompt, promptNegative, size, count, spoiler, undefined, interaction)
+                        if (genOptions.prompt.length > 0) {
+                            await runGen(genOptions, 'Here you go', spoiler, undefined, interaction)
                         } else {
                             const messageData = new MessageDerivedData()
-                            messageData.prompt = prompt
-                            messageData.negativePrompt = promptNegative
-                            messageData.size = size
-                            messageData.count = count
+                            messageData.genOptions = genOptions
                             messageData.spoiler = spoiler
                             await DiscordCom.promptUser(new PromptUserOptions(
                                 Constants.PROMPT_PROMPT,
@@ -471,29 +443,23 @@ export default class StabledBot {
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
                         const data = this.getCachedData(index)
-                        const promptData = getPromptValues(interaction)
+                        const genOptions = getPromptValues(interaction)
+                        genOptions.predefinedSeed = data?.seeds.shift()
                         await runGen(
+                            genOptions,
                             'Here is the remix',
-                            promptData.prompt,
-                            promptData.promptNegative,
-                            promptData.size,
-                            promptData.count,
                             data?.spoiler ?? false,
                             undefined,
-                            interaction,
-                            data?.seeds.shift()
+                            interaction
                         )
                         break
                     }
                     case Constants.PROMPT_REDO: {
                         const data = this.getCachedData(index)
-                        const promptData = getPromptValues(interaction)
+                        const genOptions = getPromptValues(interaction)
                         await runGen(
+                            genOptions,
                             'Here you go again',
-                            promptData.prompt,
-                            promptData.promptNegative,
-                            promptData.size,
-                            promptData.count,
                             data?.spoiler ?? false,
                             undefined,
                             interaction
@@ -501,13 +467,10 @@ export default class StabledBot {
                         break
                     }
                     case Constants.PROMPT_PROMPT: {
-                        const promptData = getPromptValues(interaction)
+                        const genOptions = getPromptValues(interaction)
                         await runGen(
+                            genOptions,
                             'Here it is',
-                            promptData.prompt,
-                            promptData.promptNegative,
-                            promptData.size,
-                            promptData.count,
                             false,
                             undefined,
                             interaction
@@ -519,7 +482,7 @@ export default class StabledBot {
             }
         })
 
-        function getPromptValues(interaction: ModalSubmitInteraction): IPromptData {
+        function getPromptValues(interaction: ModalSubmitInteraction): ImageGenerationOptions {
             const countValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_COUNT) ?? '4'
             let count = Number(countValue)
             if (isNaN(count)) count = 4
@@ -528,64 +491,44 @@ export default class StabledBot {
             const sizeValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_SIZE) ?? '1:1'
             const size = Utils.normalizeSize(sizeValue)
 
-            return {
-                prompt: interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? 'random trash',
-                promptNegative: interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? '',
-                size,
-                count
-            }
+            const genOptions = new ImageGenerationOptions()
+            genOptions.prompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? ''
+            genOptions.negativePrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
+            genOptions.size = size
+            genOptions.count = count
+            return genOptions
         }
 
+        // TODO: Generalize this input as one data class that is instantiated with defaults, then provided as one parameter.
+        //  Make other functions take that SAME object, instead of repeating all the parameters, and then some additional options for things that won't fit.
         async function runGen(
+            genOptions: ImageGenerationOptions,
             messageStart: string,
-            prompt: string,
-            negativePrompt: string,
-            size: string,
-            count: number,
             spoiler: boolean,
             message?: Message,
             interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
-            seed?: ISeed,
-            variations?: boolean,
-            hires?: boolean,
-            details?: boolean,
             fromMention?: boolean
         ) {
             try {
                 const reference = await DiscordCom.replyQueuedAndGetReference(message, interaction, fromMention)
 
                 // Generate
-                Utils.log('Adding to queue', `${count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
+                Utils.log('Adding to queue', `${genOptions.count} image(s)`, reference.getConsoleLabel(), Color.FgYellow)
                 Tasks.updateQueues()
-                const images = await StabledAPI.generateImages(new GenerateImagesOptions(
-                    reference,
-                    prompt,
-                    negativePrompt,
-                    size,
-                    count,
-                    seed,
-                    variations,
-                    hires,
-                    details
-                ))
+                const images = await StabledAPI.generateImages(reference, genOptions)
                 Tasks.updateQueues()
                 if (Object.keys(images).length) {
                     // Send to Discord
                     Utils.log('Finished generating', `${Object.keys(images).length} image(s)`, reference.getConsoleLabel(), Color.FgGreen)
                     const user = await reference.getUser(client)
-                    const reply = await DiscordCom.addImagesToResponse(client, new SendImagesOptions(
-                        prompt,
-                        negativePrompt,
-                        size,
-                        count,
-                        spoiler,
-                        images,
+                    const reply = await DiscordCom.addImagesToResponse(
+                        client,
                         reference,
+                        genOptions,
+                        images,
                         `${messageStart} ${user}!`,
-                        variations,
-                        hires,
-                        details
-                    ))
+                        spoiler
+                    )
                 } else {
                     await StabledBot.nodeError(client, reference)
                 }
@@ -669,11 +612,4 @@ export default class StabledBot {
         this._spamTheadStates.set(channelId, state)
         state ? await this._db.registerSpamThread(channelId) : await this._db.unregisterSpamThread(channelId)
     }
-}
-
-interface IPromptData {
-    prompt: string
-    promptNegative: string
-    size: string
-    count: number
 }

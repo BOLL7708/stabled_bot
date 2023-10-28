@@ -8,7 +8,7 @@ export default class StabledAPI {
     private static _api: AxiosInstance
     private static _generatedImageCount: number = 0
     private static _queueIndex = 0
-    private static _queue: Map<number, MessageReference> = new Map()
+    private static _queue: Map<number, QueueItem> = new Map()
 
     // region Init
     private static async ensureAPI() {
@@ -26,7 +26,12 @@ export default class StabledAPI {
     // endregion
 
     // region Queued Methods
-    static async generateImages(options: GenerateImagesOptions): Promise<IStringDictionary> {
+
+    // TODO: Add an enqueueGeneration method here, so we enqueue stuff BEFORE we request it from Stable Diffusion,
+    //  this to try to avoid the timeout for as much as possible.
+    //  I'm thinking we will not submit something until it is at 1/1 in the queue.
+
+    static async generateImages(reference: MessageReference, options: ImageGenerationOptions): Promise<IStringDictionary> {
         await this.ensureAPI()
         const [width, height] = options.size.split('x')
 
@@ -42,7 +47,7 @@ export default class StabledAPI {
             seed: isNaN(seed) ? -1 : seed
         }
 
-        if(!isNaN(subseed) && subseed > 0) {
+        if (!isNaN(subseed) && subseed > 0) {
             // To retain subseed usage when increasing details
             body['subseed'] = subseed
             body['subseed_strength'] = 0.1 // TODO: Move to config
@@ -59,13 +64,13 @@ export default class StabledAPI {
         }
 
         let source: ESource = ESource.Generate
-        if(options.predefinedSeed) source = ESource.Recycle
-        if(options.hires) source = ESource.Upres
-        if(options.variation) source = ESource.Variation
-        if(options.details) source = ESource.Detail
-        options.reference.source = source
+        if (options.predefinedSeed) source = ESource.Recycle
+        if (options.hires) source = ESource.Upres
+        if (options.variation) source = ESource.Variation
+        if (options.details) source = ESource.Detail
+        reference.source = source
 
-        const queueIndex = this.registerQueueItem(options.reference)
+        const queueIndex = this.registerQueueItem(new QueueItem(reference, options))
         let response: AxiosResponse<IStabledResponse>
         try {
             response = await this._api.post(`txt2img`, body)
@@ -92,7 +97,13 @@ export default class StabledAPI {
     }
 
     // endregion
-    static async upscaleImageData(reference: MessageReference, data: string, upscaleFactor: number, fileName: string) {
+    static async upscaleImageData(
+        reference: MessageReference,
+        options: ImageGenerationOptions,
+        data: string,
+        upscaleFactor: number,
+        fileName: string
+    ) {
         const body = {
             upscaling_resize: upscaleFactor,
             upscaler_1: 'Lanczos',
@@ -102,7 +113,7 @@ export default class StabledAPI {
             image: data
         }
 
-        const queueIndex = this.registerQueueItem(reference)
+        const queueIndex = this.registerQueueItem(new QueueItem(reference, options))
         let response: IStringDictionary = {}
         try {
             const upscaleResponse = await this._api.post(`extra-single-image`, body)
@@ -144,9 +155,9 @@ export default class StabledAPI {
     // endregion
 
     // region Queue Handling
-    static registerQueueItem(reference: MessageReference) {
+    static registerQueueItem(item: QueueItem) {
         const index = ++this._queueIndex
-        this._queue.set(index, reference)
+        this._queue.set(index, item)
         return index
     }
 
@@ -171,17 +182,32 @@ export default class StabledAPI {
 }
 
 // region Data Classes
-export class GenerateImagesOptions {
+export class ImageGenerationOptions {
+    constructor() {
+    }
+
+    prompt: string = ''
+    negativePrompt: string = ''
+    size: string = '512x512'
+    count: number = 4
+    predefinedSeed: ISeed | undefined = undefined
+    variation: boolean = false
+    hires: boolean = false
+    details: boolean = false
+
+    static newFrom(genOptions: ImageGenerationOptions) {
+        const newOptions = new ImageGenerationOptions()
+        for (const [field, value] of Object.entries(genOptions)) {
+            newOptions[field] = value
+        }
+        return newOptions
+    }
+}
+
+class QueueItem {
     constructor(
         public reference: MessageReference,
-        public prompt: string = 'random garbage',
-        public negativePrompt: string = '',
-        public size: string = '512x512',
-        public count: number = 4,
-        public predefinedSeed: ISeed | undefined,
-        public variation: boolean | undefined,
-        public hires: boolean | undefined,
-        public details: boolean | undefined
+        public options: ImageGenerationOptions
     ) {
     }
 }
