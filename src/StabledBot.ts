@@ -529,9 +529,10 @@ export default class StabledBot {
                 reference.source = source
 
                 // Generate
+                const link = Utils.linkifyPrompt('🛈', imageOptions.prompt)
                 const postOptions = new PostOptions()
                 const user = await reference.getUser(client)
-                postOptions.message = `${messageStart} ${user}!`
+                postOptions.message = `${messageStart} ${user}! ${link}`
                 postOptions.spoiler = spoiler
                 const queueItem = new QueueItem(reference, imageOptions, postOptions)
                 await StabledAPI.enqueueGeneration(queueItem)

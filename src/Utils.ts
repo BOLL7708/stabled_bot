@@ -85,6 +85,15 @@ export default class Utils {
             .replace(/\s+/g, '') // Remove whitespace
             .replace(/\W/g, '') // Remove non-word characters
     }
+
+    static linkifyPrompt(label: string, prompt: string): string {
+        const regex = /[^a-zA-Z0-9\-._~]/g; // Match anything but unreserved URL chars
+        prompt = prompt
+            .replaceAll(/\s+/g, '_')
+            .replaceAll(/\n/g, '.')
+            .replace(regex, '');
+        return `[${label}](https://./${prompt})`
+    }
 }
 
 export class PngInfo {
