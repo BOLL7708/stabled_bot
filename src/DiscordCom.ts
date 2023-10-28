@@ -212,14 +212,14 @@ export default class DiscordCom {
             row1.addComponents(deleteButton)
             components.push(row1)
         } else if (item.imageOptions.details) {
-            row1.addComponents(deleteButton, infoButton, upscaleButton)
+            row1.addComponents(deleteButton, infoButton)
             components.push(row1)
         } else if (item.imageOptions.variation) {
-            row1.addComponents(deleteButton, infoButton, upscaleButton, detailButton)
+            row1.addComponents(deleteButton, infoButton, detailButton)
             components.push(row1)
         } else {
-            row1.addComponents(deleteButton, editButton, redoButton, varyButton)
-            row2.addComponents(deadButton1, infoButton, detailButton, upscaleButton)
+            row1.addComponents(deleteButton, editButton, redoButton)
+            row2.addComponents(infoButton, detailButton, varyButton)
             components.push(row1, row2)
         }
 

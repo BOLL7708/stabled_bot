@@ -109,7 +109,6 @@ export default class StabledAPI {
         upscaleFactor: number,
         fileName: string
     ) {
-        return // TODO
         // const body = {
         //     upscaling_resize: upscaleFactor,
         //     upscaler_1: 'Lanczos',

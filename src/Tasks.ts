@@ -13,13 +13,13 @@ export default class Tasks {
         messageId: string,
         buttonIndex: number | string
     ): Promise<IStringDictionary> {
-        return // TODO
         // const channel = await reference.getChannel(client)
         // if (!channel) throw('Could not get channel.')
         // const attachment = await DiscordUtils.getAttachment(channel, messageId, buttonIndex)
         // const fileName = attachment.name.replace('.png', '')
         // const upscaleFactor = 4 // TODO: Make this configurable
         // return await StabledAPI.upscaleImageData(reference, options, attachment.data, upscaleFactor, fileName)
+        return {}
     }
 
     static async getDataForMessage(message: Message): Promise<MessageDerivedData> {
