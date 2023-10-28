@@ -100,13 +100,14 @@ export default class StabledBot {
             if (message.author.bot) return // Skip generating from bots
             if (!message.content.trim().length) return // Skip empty messages, like ones with just an image
 
+            const mentionCount = message?.mentions?.members?.size ?? 0
             const reTags = /<@!?(\d*?)>/gm
             const allTags = [...message.content.matchAll(reTags)].map(match => match[1])
             const botTags = allTags.filter(group => {
                 return group == client.user.id
             }) ?? []
 
-            if (spamEnabled && allTags.length == 0) {
+            if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
                 await gen(message.content, 'Spam served', false)
             } else if (botTags.length > 0) {
                 const prompt = message.content.replaceAll(reTags, '')
