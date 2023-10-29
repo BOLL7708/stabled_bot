@@ -82,6 +82,16 @@ export default class DiscordUtils {
         return seeds
     }
 
+    private static REGEX_USERTAGS = /<@!?(\d*?)>/gm
+
+    static getTagsFromContent(content: string): string[] {
+        return [...content.matchAll(this.REGEX_USERTAGS)].map(match => match[1])
+    }
+
+    static removeTagsFromContent(content: string): string {
+        return content.replaceAll(this.REGEX_USERTAGS, '')
+    }
+
     // endregion
 }
 

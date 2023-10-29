@@ -1,5 +1,4 @@
 import Config from './Config.js'
-import Constants from './Constants.js'
 
 export default class Utils {
     static normalizeSize(arbitrarySize: string): string {
@@ -24,10 +23,13 @@ export default class Utils {
         return arr.join('-')
     }
 
-    static async progressBarMessage(value: number): Promise<string> {
+    static async progressBarMessage(index: number | undefined, value: number): Promise<string> {
+        const indexStr = !!index
+            ? ` at #${index}`
+            : ''
         const bar = (await Config.get()).progressBarSymbols
-        const index = Math.round(value * bar.length)
-        return `${Constants.CONTENT_GENERATING} ${bar.slice(0, index).join('')}${'⚫'.repeat(bar.length - index)} \`${Math.round(value * 100)}%\``
+        const progress = Math.round(value * bar.length)
+        return `\`🎪 Working${indexStr}: ${bar.slice(0, progress).join('')}${'⚫'.repeat(bar.length - progress)} ${Math.round(value * 100)}%\``
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {
@@ -84,15 +86,6 @@ export default class Utils {
         })
             .replace(/\s+/g, '') // Remove whitespace
             .replace(/\W/g, '') // Remove non-word characters
-    }
-
-    static linkifyPrompt(label: string, prompt: string): string {
-        const regex = /[^a-zA-Z0-9\-._~]/g; // Match anything but unreserved URL chars
-        prompt = prompt
-            .replaceAll(/\s+/g, '_')
-            .replaceAll(/\n/g, '.')
-            .replace(regex, '');
-        return `[${label}](https://./${prompt})`
     }
 }
 

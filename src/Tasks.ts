@@ -1,10 +1,8 @@
 import {ActivityType, APIEmbed, ApplicationCommandOptionType, ButtonStyle, Client, DMChannel, Message, TextChannel, TextInputStyle} from 'discord.js'
-import Constants from './Constants.js'
 import Utils, {IStringDictionary} from './Utils.js'
 import {MessageReference} from './DiscordCom.js'
-import StabledAPI, {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
+import StabledAPI, {ImageGenerationOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
-import StabledBot from './StabledBot.js'
 
 export default class Tasks {
     static async getAttachmentAndUpscale(
@@ -54,67 +52,27 @@ export default class Tasks {
 
     private static _currentStatus: string = ''
     private static _currentActivity: string = ''
-    private static _updateQueues: boolean = false
-    private static _lastQueueItemIndex: number = 0
-
-    static updateQueues() {
-        this._updateQueues = true
-    }
+    private static _lastQueueItemIndexStarted: number = 0
 
     static async updateProgressAndStartGenerations(client: Client | undefined) {
         const progress = await StabledAPI.getProgress()
         if (!progress) throw('Could not get progress.')
 
-        // Update progress message
-        try {
-            const message = await StabledAPI.currentQueueItem?.reference?.getMessage(client as Client)
-            await message?.edit({
-                content: await Utils.progressBarMessage(progress.progress)
-            })
-        } catch (e) {
-            console.error('Progress update failed:', e.message)
-        }
-
-        // Progress
-        const queueEntries = StabledAPI.getQueueEntries()
-        let currentItem = queueEntries.next()
-        const itemFirstInQueue = currentItem?.value as QueueItem|undefined
-
-        // Update queue messages
-        let placeInQueue = 0
-        while (currentItem?.value && !currentItem?.value?.done) {
-            if (this._updateQueues) {
-                this._updateQueues = false
-                const item = currentItem.value as QueueItem
-                try {
-                    ++placeInQueue
-                    if(item.index > this._lastQueueItemIndex) {
-                        const message = await item.reference.getMessage(client)
-                        await message?.edit({
-                            content: `${Constants.CONTENT_QUEUED} ${item.reference.source}... \`#${placeInQueue}\``
-                        })
-                    }
-                } catch (e) {
-                    console.error('Queue update failed:', e.message)
-                }
-            }
-            currentItem = queueEntries.next()
-        }
-
-        // Generate images if we have a new queue item, is using the first item in the queue.
-        const jobCount = progress?.state?.job_count ?? 0
-        const queueItemIndex = itemFirstInQueue?.index ?? Infinity
-        let idle = jobCount <= 0
-        if (idle && itemFirstInQueue) {
-            this._lastQueueItemIndex = itemFirstInQueue.index
-            StabledAPI.startGenerationOfImages(itemFirstInQueue).then()
-        }
+        const currentQueueItem = StabledAPI.currentQueueItem
+        const isWorking = (progress.state?.job_count ?? 0) > 0
+        const queueSize = StabledAPI.getQueueSize()
+        const noMoreWork = !isWorking && queueSize <= 0
 
         // Presence
-        const newStatus = idle ? 'online' : 'dnd'
-        const newActivity = idle
+        const currentWorkIndex = currentQueueItem?.index ?? 0
+        const newStatus = noMoreWork
+            ? 'online'
+            : 'dnd'
+        const newActivity = noMoreWork
             ? 'Idle 💤'
-            : `Work ⏳:${Math.round(100 * progress.progress)}% 📋:${placeInQueue}`
+            : (progress.progress > 0 && currentWorkIndex > 0)
+                ? `Work ⏳${Math.round(100 * progress.progress)}% #️⃣${currentWorkIndex}`
+                : `Work 💾`
         if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
             this._currentStatus = newStatus
             this._currentActivity = newActivity
@@ -128,6 +86,31 @@ export default class Tasks {
                 })
             } catch (e) {
                 console.error('Presence update failed.', e.message)
+            }
+        }
+
+        // Update progress message
+        try {
+            const message = await currentQueueItem?.reference?.getMessage(client as Client)
+            if (message) {
+                // Having a mention means the message has been edited to insert the result already.
+                const hasMention = DiscordUtils.getTagsFromContent(message.content).length > 0
+                if (!hasMention) {
+                    await message.edit({
+                        content: await Utils.progressBarMessage(currentQueueItem?.index, progress.progress)
+                    })
+                } else console.log('Avoided updating progress as result has already been posted.')
+            }
+        } catch (e) {
+            console.error('Progress update failed:', e.message)
+        }
+
+        // Generate images if we have nothing to do
+        if (!isWorking) {
+            const item = StabledAPI.getNextInQueue()
+            if (item) {
+                this._lastQueueItemIndexStarted = item.index
+                StabledAPI.startGenerationOfImages(item).then()
             }
         }
     }

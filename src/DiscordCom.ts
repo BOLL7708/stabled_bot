@@ -121,10 +121,16 @@ export default class DiscordCom {
     // endregion
 
     // region Send
-    static async replyQueuedAndGetReference(message?: Message, interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction, fromMention?: boolean): Promise<MessageReference> {
+    static async replyQueuedAndGetReference(
+        index: number,
+        source: ESource,
+        fromMention: boolean,
+        message?: Message,
+        interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction
+    ): Promise<MessageReference> {
         let sentMessage: Message | undefined
         try {
-            const queuedMessage = `${Constants.CONTENT_QUEUED}...`
+            const queuedMessage = `\`⏰ Queued: ${source}, #${index}\``
             if (interaction instanceof ButtonInteraction || interaction instanceof ModalSubmitInteraction) {
                 // To these we respond as a separate message, as button menus are ephemeral and will create missing references.
                 await interaction?.deferUpdate()
@@ -145,6 +151,7 @@ export default class DiscordCom {
             console.error('Unable to initiate response.', e.message)
         }
         const reference = new MessageReference()
+        reference.source = source ?? ESource.Unknown
         if (message) {
             reference.userId = message.author?.id?.toString()
             reference.channelId = message.channelId
@@ -225,7 +232,7 @@ export default class DiscordCom {
 
         // Reply
         try {
-            Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, item.reference.getConsoleLabel(), Color.FgGray)
+            Utils.log('Updating', `#${item.index} ${Object.keys(item.postOptions.images).length} image(s)`, item.reference.getConsoleLabel(), Color.FgGray)
             return await message.edit({
                 content: item.postOptions.message,
                 files: attachments,

@@ -100,9 +100,8 @@ export default class StabledBot {
             if (message.author.bot) return // Skip generating from bots
             if (!message.content.trim().length) return // Skip empty messages, like ones with just an image
 
-            const mentionCount = message?.mentions?.members?.size ?? 0
-            const reTags = /<@!?(\d*?)>/gm
-            const allTags = [...message.content.matchAll(reTags)].map(match => match[1])
+            const mentionCount = message.mentions?.members?.size ?? 0 // To detect replies to other people, no message tag but a mention, does not exist on DMs.
+            const allTags = DiscordUtils.getTagsFromContent(message.content)
             const botTags = allTags.filter(group => {
                 return group == client.user.id
             }) ?? []
@@ -110,7 +109,7 @@ export default class StabledBot {
             if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
                 await gen(message.content, 'Spam served', false)
             } else if (botTags.length > 0) {
-                const prompt = message.content.replaceAll(reTags, '')
+                const prompt = DiscordUtils.removeTagsFromContent(message.content)
                 await gen(prompt, 'A quickie', true)
             }
 
@@ -521,22 +520,21 @@ export default class StabledBot {
             fromMention?: boolean
         ) {
             try {
-                const reference = await DiscordCom.replyQueuedAndGetReference(message, interaction, fromMention)
+                const index = StabledAPI.getNextQueueIndex()
                 let source: ESource = ESource.Generate
                 if (imageOptions.predefinedSeed) source = ESource.Recycle
                 if (imageOptions.hires) source = ESource.Upres
                 if (imageOptions.variation) source = ESource.Variation
                 if (imageOptions.details) source = ESource.Detail
-                reference.source = source
+                const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, message, interaction)
 
                 // Generate
                 const postOptions = new PostOptions()
                 const user = await reference.getUser(client)
                 postOptions.message = `${messageStart} ${user}!`
                 postOptions.spoiler = spoiler
-                const queueItem = new QueueItem(reference, imageOptions, postOptions)
+                const queueItem = new QueueItem(index, reference, imageOptions, postOptions)
                 await StabledAPI.enqueueGeneration(queueItem)
-                Tasks.updateQueues()
             } catch (e) {
                 console.error(e)
             }
