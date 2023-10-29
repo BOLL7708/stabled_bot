@@ -125,17 +125,18 @@ export default class StabledBot {
         client.on(Events.InteractionCreate, async interaction => {
             if (interaction.isButton()) {
                 // region Buttons
-                Utils.log('Button triggered', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                 const [type, payload] = interaction.customId.split('#')
                 const data = await Tasks.getDataForMessage(interaction.message)
                 switch (type.toLowerCase()) {
                     case Constants.BUTTON_DELETE: {
+                        Utils.log('Button pressed', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
                         const messageResult = await DiscordUtils.getMessageFromInteraction(interaction)
                         if (messageResult) {
                             if (
                                 messageResult.channel instanceof DMChannel // DMs are always deletable
                                 || data.userId == interaction.user.id // Limit to creator in public channels
                             ) {
+                                Utils.log('Deletion', messageResult.message.id, interaction.user.username, Color.Reset, Color.FgRed)
                                 await messageResult.message.delete()
                                 await interaction.deferUpdate()
                             } else {
@@ -529,10 +530,9 @@ export default class StabledBot {
                 reference.source = source
 
                 // Generate
-                const link = Utils.linkifyPrompt('🛈', imageOptions.prompt)
                 const postOptions = new PostOptions()
                 const user = await reference.getUser(client)
-                postOptions.message = `${messageStart} ${user}! ${link}`
+                postOptions.message = `${messageStart} ${user}!`
                 postOptions.spoiler = spoiler
                 const queueItem = new QueueItem(reference, imageOptions, postOptions)
                 await StabledAPI.enqueueGeneration(queueItem)

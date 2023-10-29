@@ -10,6 +10,7 @@ export default class StabledAPI {
     private static _queueIndex = 0
     private static _queue: Map<number, QueueItem> = new Map()
     private static _listeners: IStabledResultListener[] = []
+    static currentQueueItem: QueueItem | undefined = undefined
 
     // region Init
     private static async ensureAPI() {
@@ -30,7 +31,7 @@ export default class StabledAPI {
 
     static enqueueGeneration(item: QueueItem) {
         this.registerQueueItem(item)
-        Utils.log('Enqueued', `${item.imageOptions.count} image(s)`, item.reference.getConsoleLabel(), Color.FgMagenta)
+        Utils.log('Enqueued', `${item.imageOptions.count} image(s)`, `#${item.index} `+item.reference.getConsoleLabel(), Color.FgMagenta)
     }
 
     static registerResultListener(listener: IStabledResultListener) {
@@ -38,14 +39,17 @@ export default class StabledAPI {
     }
 
     private static notifyResultListeners(item: QueueItem) {
-        Utils.log('Finished', `${Object.keys(item.postOptions.images).length} image(s)`, item.reference.getConsoleLabel(), Color.FgGreen)
+        Utils.log('Finished', `${Object.keys(item.postOptions.images).length} image(s)`, `#${item.index} `+item.reference.getConsoleLabel(), Color.FgGreen)
         for (const listener of this._listeners) {
             listener(item)
         }
     }
 
-    static async generateImages(item: QueueItem) {
-        Utils.log('Starting', `${item.imageOptions.count} image(s)`, item.reference.getConsoleLabel(), Color.FgYellow)
+    static async startGenerationOfImages(item: QueueItem) {
+        this.unregisterQueueItem(item)
+        this.currentQueueItem = item
+
+        Utils.log('Starting', `${item.imageOptions.count} image(s)`, `#${item.index} `+item.reference.getConsoleLabel(), Color.FgYellow)
         await this.ensureAPI()
         const [width, height] = item.imageOptions.size.split('x')
 
@@ -84,7 +88,6 @@ export default class StabledAPI {
         } catch (e) {
             console.error('Error queueing up image generation:', e.message)
         }
-        this.unregisterQueueItem(item)
 
         // Get images from response and inject them into the item
         if (response?.data) {
@@ -100,6 +103,7 @@ export default class StabledAPI {
             }
             item.postOptions.images = imageDic
         }
+        this.currentQueueItem = undefined
         this.notifyResultListeners(item)
     }
 
@@ -174,10 +178,6 @@ export default class StabledAPI {
         return this._queue.values()
     }
 
-    static getQueueSize(): number {
-        return this._queue.size
-    }
-
     static clearQueue() {
         this._queue.clear()
         this._queueIndex = 0
@@ -210,14 +210,13 @@ export class ImageGenerationOptions {
 }
 
 export class QueueItem {
-    public index: number = 0
-
     constructor(
         public reference: MessageReference,
         public imageOptions: ImageGenerationOptions,
         public postOptions: PostOptions
     ) {
     }
+    public index: number = 0
 }
 
 // endregion

@@ -2,7 +2,7 @@ import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, B
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
-import {IStringDictionary} from './Utils.js'
+import Utils, {Color, IStringDictionary} from './Utils.js'
 import {MessageDerivedData} from './Tasks.js'
 import {QueueItem} from './StabledAPI.js'
 
@@ -225,6 +225,7 @@ export default class DiscordCom {
 
         // Reply
         try {
+            Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, item.reference.getConsoleLabel(), Color.FgGray)
             return await message.edit({
                 content: item.postOptions.message,
                 files: attachments,
@@ -394,7 +395,6 @@ export class MessageReference {
         public channelId: string = '',
         public guildId: string = '',
         public messageId: string = '',
-        public responseId: string = '',
         public userName: string = '',
         public source: ESource = ESource.Unknown
     ) {
