@@ -37,6 +37,7 @@ export default class StabledBot {
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
+        this._config = await Config.get()
         this._db = new DB()
 
         // Register Stabled result listener
@@ -65,7 +66,6 @@ export default class StabledBot {
         )
 
         await DiscordCom.registerCommands()
-        this._config = await Config.get()
 
         // Create Discord client
         const client: Client = new Client({
@@ -107,17 +107,18 @@ export default class StabledBot {
             }) ?? []
 
             if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
-                await gen(message.content, 'Spam served', false)
+                gen(message.content, 'Spam served', false, this._config.maxSpamBatchSize)
             } else if (botTags.length > 0) {
                 const prompt = DiscordUtils.removeTagsFromContent(message.content)
-                await gen(prompt, 'A quickie', true)
+                gen(prompt, 'A quickie', true, this._config.maxSpamBatchSize)
             }
 
-            async function gen(prompt: string, response: string, fromMention: boolean) {
-                const genOptions = new ImageGenerationOptions()
-                genOptions.prompt = prompt
-                genOptions.count = 1
-                await enqueueGen(genOptions, response, false, message, undefined, fromMention)
+            function gen(input: string, response: string, fromMention: boolean, maxEntries: number = 64) {
+                const imageOptions = Utils.getImageOptionsFromInput(input)
+                for(const options of imageOptions.slice(0, maxEntries)) {
+                    options.count = 1
+                    enqueueGen(options, response, false, message, undefined, fromMention).then()
+                }
             }
         })
 
@@ -188,9 +189,9 @@ export default class StabledBot {
                             genOptions.count = 4
                             genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
                             genOptions.variation = true
-                            await enqueueGen(genOptions, 'Here are the variations', useData.spoiler, undefined, interaction)
+                            enqueueGen(genOptions, 'Here are the variations', useData.spoiler, undefined, interaction).then()
                         } else {
-                            await StabledBot.replyDataError(interaction)
+                            StabledBot.replyDataError(interaction).then()
                         }
                         break
                     }
@@ -249,9 +250,9 @@ export default class StabledBot {
                             genOptions.count = 1
                             genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
                             genOptions.details = true
-                            await enqueueGen(genOptions, 'Here are more details', useData.spoiler, undefined, interaction)
+                            enqueueGen(genOptions, 'Here are more details', useData.spoiler, undefined, interaction).then()
                         } else {
-                            await StabledBot.replyDataError(interaction)
+                            StabledBot.replyDataError(interaction).then()
                         }
                         break
                     }
@@ -259,7 +260,13 @@ export default class StabledBot {
                         if (data.genOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_INFO_CHOICE, 'Pick which image to get information for:', nextIndex, data.genOptions.count, interaction)
+                            DiscordCom.showButtons(
+                                Constants.BUTTON_INFO_CHOICE,
+                                'Pick which image to get information for:',
+                                nextIndex,
+                                data.genOptions.count,
+                                interaction
+                            ).then()
                             break
                         }
                     }
@@ -288,21 +295,21 @@ export default class StabledBot {
                                 files.push(file)
                             }
                             try {
-                                await interaction.reply({
+                                interaction.reply({
                                     ephemeral: true,
                                     content: `PNG info loaded for: \`${attachment.name}\``,
                                     embeds,
                                     files
-                                })
+                                }).then()
                             } catch (e) {
                                 console.error('Info post failure:', e.message)
                             }
 
                         } else {
-                            await interaction.reply({
+                            interaction.reply({
                                 ephemeral: true,
                                 content: 'Was unable to get attachment and load the data for it :('
-                            })
+                            }).then()
                         }
                         break
                     }
@@ -322,18 +329,18 @@ export default class StabledBot {
                         genOptions.count = countValue ? Number(countValue) : 4
                         const spoiler = !!options.get(Constants.OPTION_SPOILER)?.value
                         if (genOptions.prompt.length > 0) {
-                            await enqueueGen(genOptions, 'Here you go', spoiler, undefined, interaction)
+                            enqueueGen(genOptions, 'Here you go', spoiler, undefined, interaction).then()
                         } else {
                             const messageData = new MessageDerivedData()
                             messageData.genOptions = genOptions
                             messageData.spoiler = spoiler
-                            await DiscordCom.promptUser(new PromptUserOptions(
+                            DiscordCom.promptUser(new PromptUserOptions(
                                 Constants.PROMPT_PROMPT,
                                 'New Seed',
                                 interaction,
                                 '',
                                 messageData
-                            ))
+                            )).then()
                         }
                         break
                     }
@@ -457,36 +464,36 @@ export default class StabledBot {
                         const data = this.getCachedData(index)
                         const genOptions = getPromptValues(interaction)
                         genOptions.predefinedSeed = data?.seeds.shift()
-                        await enqueueGen(
+                        enqueueGen(
                             genOptions,
                             'Here is the remix',
                             data?.spoiler ?? false,
                             undefined,
                             interaction
-                        )
+                        ).then()
                         break
                     }
                     case Constants.PROMPT_REDO: {
                         const data = this.getCachedData(index)
                         const genOptions = getPromptValues(interaction)
-                        await enqueueGen(
+                        enqueueGen(
                             genOptions,
                             'Here you go again',
                             data?.spoiler ?? false,
                             undefined,
                             interaction
-                        )
+                        ).then()
                         break
                     }
                     case Constants.PROMPT_PROMPT: {
                         const genOptions = getPromptValues(interaction)
-                        await enqueueGen(
+                        enqueueGen(
                             genOptions,
                             'Here it is',
                             false,
                             undefined,
                             interaction
-                        )
+                        ).then()
                         break
                     }
                 }
@@ -534,7 +541,7 @@ export default class StabledBot {
                 postOptions.message = `${messageStart} ${user}!`
                 postOptions.spoiler = spoiler
                 const queueItem = new QueueItem(index, reference, imageOptions, postOptions)
-                await StabledAPI.enqueueGeneration(queueItem)
+                StabledAPI.enqueueGeneration(queueItem)
             } catch (e) {
                 console.error(e)
             }

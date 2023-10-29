@@ -46,6 +46,7 @@ export default class StabledAPI {
     }
 
     static async startGenerationOfImages(item: QueueItem) {
+        const config = await Config.get()
         this.unregisterQueueItem(item)
         this.currentQueueItem = item
 
@@ -68,11 +69,11 @@ export default class StabledAPI {
         if (!isNaN(subseed) && subseed > 0) {
             // To retain subseed usage when increasing details
             body['subseed'] = subseed
-            body['subseed_strength'] = 0.1 // TODO: Move to config
+            body['subseed_strength'] = config.variationStrenth ?? 0.1
         }
         if (item.imageOptions.variation) {
             body['subseed'] = -1
-            body['subseed_strength'] = 0.1
+            body['subseed_strength'] = config.variationStrenth ?? 0.1
         }
         if (item.imageOptions.hires) {
             body['enable_hr'] = true
@@ -200,6 +201,7 @@ export class ImageGenerationOptions {
     variation: boolean = false
     hires: boolean = false
     details: boolean = false
+    promptHints: string[] = []
 
     static newFrom(genOptions: ImageGenerationOptions) {
         const newOptions = new ImageGenerationOptions()

@@ -6,5 +6,8 @@
   "apiUrl": "http://localhost:7860",
   "timeoutMins": 5,
   "botUserName": "Stabled",
-  "progressBarSymbols": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+  "progressBarSymbols": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
+  "maxSpamBatchSize": 16,
+  "variationStrength": 0.1,
+  "maxPromptSizeInResponse": 32
 }

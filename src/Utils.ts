@@ -1,10 +1,12 @@
 import Config from './Config.js'
+import {ImageGenerationOptions} from './StabledAPI.js'
+import * as repl from 'repl'
 
 export default class Utils {
     static normalizeSize(arbitrarySize: string): string {
         const DEFAULT = '512x512'
         // Parse values
-        const sizePair = arbitrarySize.split(/\D/)
+        const sizePair = arbitrarySize.split(/[^.\d]/)
         if (!sizePair || sizePair.length < 2) return DEFAULT
         const sizeWidth = Number(sizePair[0])
         const sizeHeight = Number(sizePair[1])
@@ -87,6 +89,64 @@ export default class Utils {
             .replace(/\s+/g, '') // Remove whitespace
             .replace(/\W/g, '') // Remove non-word characters
     }
+
+    static getImageOptionsFromInput(input: string): ImageGenerationOptions[] {
+        /**
+         * Recursive function that generates all the possible combinations of alt values.
+         * @param input
+         * @param existingMatch
+         */
+        function replaceAltArraysWithAlts(input: IPromptAltValues, existingMatch?: RegExpMatchArray): IPromptAltValues[] {
+            // Go through incoming values, check for any
+            const regexAlts = /\[(.*?)]/m
+            const match = existingMatch ?? input.prompt.match(regexAlts)
+            const result: IPromptAltValues[] = []
+            if (match) {
+                const [replaceStr, group] = match
+                if (replaceStr && group) {
+                    for (let alt of group.split(',')) {
+                        alt = alt.trim()
+                        const newPrompt = Utils.replaceSubstring(input.prompt, match.index, replaceStr.length, alt)
+                        const newMatch = newPrompt.match(regexAlts)
+                        const hints = [...input.hints, alt]
+                        if (newMatch) {
+                            const newResult = replaceAltArraysWithAlts({prompt: newPrompt, hints}, newMatch)
+                            result.push(...newResult)
+                        } else result.push({prompt: newPrompt, hints})
+                    }
+                } else {
+                    result.push(input)
+                }
+            } else result.push(input)
+            return result
+        }
+
+        const alternatives = replaceAltArraysWithAlts({prompt: input, hints: []})
+        const result: ImageGenerationOptions[] = []
+        for (const alt of alternatives) {
+            let [altPrompt, negativePrompt] = alt.prompt.split(';')
+            const sizeMatch = altPrompt.match(/\{([.\d]+.+[.\d]+)}/m)
+            let size: string
+            if (sizeMatch) {
+                const [replaceStr, group] = sizeMatch
+                altPrompt = this.replaceSubstring(altPrompt, sizeMatch.index, replaceStr.length, '')
+                if(group) size = Utils.normalizeSize(group)
+            }
+            const newOptions = new ImageGenerationOptions()
+            newOptions.prompt = altPrompt
+            newOptions.promptHints = alt.hints
+            if (negativePrompt?.length) newOptions.negativePrompt = negativePrompt
+            if (size?.length) newOptions.size = size
+            result.push(newOptions)
+        }
+        return result
+    }
+
+    static replaceSubstring(input: string, index: number, length: number, replacement: string) {
+        const head = input.slice(0, index)
+        const tail = input.slice(index + length)
+        return head + replacement + tail;
+    }
 }
 
 export class PngInfo {
@@ -139,4 +199,9 @@ export class Color {
 
 export interface IStringDictionary {
     [key: string]: string
+}
+
+export interface IPromptAltValues {
+    prompt: string
+    hints: string[]
 }

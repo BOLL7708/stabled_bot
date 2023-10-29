@@ -172,6 +172,7 @@ export default class DiscordCom {
         client: Client,
         item: QueueItem
     ) {
+        const config = await Config.get()
         const message = await item.reference.getMessage(client)
         if (!message) throw('Could not get message.')
 
@@ -232,9 +233,15 @@ export default class DiscordCom {
 
         // Reply
         try {
-            Utils.log('Updating', `#${item.index} ${Object.keys(item.postOptions.images).length} image(s)`, item.reference.getConsoleLabel(), Color.FgGray)
+            Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, `#${item.index} `+item.reference.getConsoleLabel(), Color.FgGray)
+            const max = config.maxPromptSizeInResponse
+            const promptLength = item.imageOptions.prompt.length
+            const hintCount = item.imageOptions.promptHints.length
+            const promptHint = (promptLength > max && hintCount > 0)
+                ? ' ` ' + item.imageOptions.promptHints.join(', ') + ' `'
+                : ` \` ${item.imageOptions.prompt.slice(0, max).trim()}${promptLength > max ? '…' : ''} \``
             return await message.edit({
-                content: item.postOptions.message,
+                content: item.postOptions.message + promptHint,
                 files: attachments,
                 components
             })
