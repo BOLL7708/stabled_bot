@@ -25,6 +25,11 @@ export default class Constants {
     static SUBCOMMAND_SPAM_ON = 'on'
     static SUBCOMMAND_SPAM_OFF = 'off'
 
+    static COMMAND_HELP = 'help'
+    static SUBCOMMAND_HELP_GENERAL = 'general'
+    static SUBCOMMAND_HELP_SPAM = 'spam'
+    static SUBCOMMAND_HELP_GEN = 'gen'
+
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'
     static PROMPT_REDO = 'prompt-redo'
@@ -32,6 +37,4 @@ export default class Constants {
     static INPUT_NEW_COUNT = 'new-count'
     static INPUT_NEW_PROMPT = 'new-prompt'
     static INPUT_NEW_NEGATIVE_PROMPT = 'new-negative-prompt'
-
-    static COMMAND_HELP = 'help'
 }

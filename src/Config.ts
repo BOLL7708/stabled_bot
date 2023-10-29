@@ -32,6 +32,6 @@ export interface IConfig {
     botUserName: string
     progressBarSymbols: string[]
     maxSpamBatchSize: number
-    variationStrenth: number
+    variationStrength: number
     maxPromptSizeInResponse: number
 }

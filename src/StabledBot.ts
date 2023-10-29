@@ -4,7 +4,7 @@ import Tasks, {MessageDerivedData} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
-import Utils, {Color} from './Utils.js'
+import Utils, {Color, IStringDictionary} from './Utils.js'
 import DiscordCom, {ESource, MessageReference, PostOptions, PromptUserOptions} from './DiscordCom.js'
 import StabledAPI, {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
 import DiscordUtils, {IAttachment} from './DiscordUtils.js'
@@ -12,8 +12,8 @@ import fs from 'fs/promises'
 import DB from './DB.js'
 
 export default class StabledBot {
+    private static helpCache: IStringDictionary = {}
     private _config: IConfig
-    private _help: string
     private _dataCache = new Map<number, MessageDerivedData>()
     private _interactionIndex = 0
     private _spamTheadStates = new Map<string, boolean>() // Use methods to set this so it also updates the database.
@@ -345,15 +345,19 @@ export default class StabledBot {
                         break
                     }
                     case Constants.COMMAND_HELP: {
-                        try {
-                            if (!this._help) this._help = await fs.readFile('./help.md', 'utf8')
-                            interaction.reply({
-                                ephemeral: true,
-                                content: this._help
-                            })
-                        } catch (e) {
-                            console.error('Unable to load help:', e.message)
+                        const subcommand = options.getSubcommand()
+                        async function displayHelp(fileName: string, interaction: CommandInteraction) {
+                            try {
+                                if (!StabledBot.helpCache.hasOwnProperty(fileName)) StabledBot.helpCache[fileName] = await fs.readFile(`./help/${fileName}.md`, 'utf8')
+                                interaction.reply({
+                                    ephemeral: true,
+                                    content: StabledBot.helpCache[fileName]
+                                }).then()
+                            } catch (e) {
+                                console.error('Unable to load help:', e.message)
+                            }
                         }
+                        displayHelp(subcommand, interaction).then()
                         break
                     }
                     case Constants.COMMAND_SPAM: {

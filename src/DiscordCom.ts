@@ -81,6 +81,22 @@ export default class DiscordCom {
         const helpCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_HELP)
             .setDescription('Show documentation about the bot and instructions on how to use it.')
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_HELP_GENERAL)
+                    .setDescription('Show general help.')
+            })
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_HELP_SPAM)
+                    .setDescription('Show spam command and mode help.')
+            })
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_HELP_GEN)
+                    .setDescription('Show generation command help.')
+            })
+
 
         const spamCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_SPAM)
