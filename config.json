@@ -8,9 +8,10 @@
   "botUserName": "Stabled",
   "progressBarSymbols": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
   "progressBarFiller": " ",
-  "maxSpamBatchSize": 16,
   "variationStrength": 0.1,
   "maxPromptSizeInResponse": 32,
   "alwaysOnHiresMode": false,
-  "samplerName": "Euler"
+  "samplerName": "Euler",
+  "spamMaxBatchSize": 16,
+  "spamThreadThreshold": 8
 }

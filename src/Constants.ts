@@ -38,4 +38,9 @@ export default class Constants {
     static INPUT_NEW_COUNT = 'new-count'
     static INPUT_NEW_PROMPT = 'new-prompt'
     static INPUT_NEW_NEGATIVE_PROMPT = 'new-negative-prompt'
+
+    static BUTTON_SPAM_THREAD_CANCEL = 'spam-thread-cancel'
+    static BUTTON_SPAM_THREAD_OK = 'spam-thread-ok'
+    static PROMPT_THREAD = 'prompt-thread'
+    static INPUT_THREAD_TITLE = 'thread-title'
 }

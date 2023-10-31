@@ -1,13 +1,15 @@
-import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Interaction, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
 import Utils, {Color, IStringDictionary} from './Utils.js'
 import {MessageDerivedData} from './Tasks.js'
-import {QueueItem} from './StabledAPI.js'
+import {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
 
 export default class DiscordCom {
     private static _rest: REST
+    private static _spamBatchIndex = 0
+    private static _spamBatchCache: Map<number, SpamThreadCache> = new Map<number, SpamThreadCache>()
 
     static async ensureREST() {
         const config = await Config.get()
@@ -254,7 +256,7 @@ export default class DiscordCom {
 
         // Reply
         try {
-            Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, `#${item.index} `+item.reference.getConsoleLabel(), Color.FgGray)
+            Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, `#${item.index} ` + item.reference.getConsoleLabel(), Color.FgGray)
             const max = config.maxPromptSizeInResponse
             const promptLength = item.imageOptions.prompt.length
             const hintCount = item.imageOptions.promptHints.length
@@ -365,10 +367,36 @@ export default class DiscordCom {
         }
     }
 
+    static async sendSpamThreadMessage(imageOptions: ImageGenerationOptions[], message: Message) {
+        const config = await Config.get()
+        const index = ++this._spamBatchIndex
+        this._spamBatchCache.set(index, new SpamThreadCache(index, message.author.id, imageOptions))
+
+        const row = new ActionRowBuilder<ButtonBuilder>()
+        const buttonCancel = new ButtonBuilder()
+            .setCustomId(`${Constants.BUTTON_SPAM_THREAD_CANCEL}#${index}`)
+            .setLabel('Cancel')
+            .setStyle(ButtonStyle.Danger)
+        const buttonOK = new ButtonBuilder()
+            .setCustomId(`${Constants.BUTTON_SPAM_THREAD_OK}#${index}`)
+            .setLabel('OK')
+            .setStyle(ButtonStyle.Success)
+        row.addComponents(buttonCancel, buttonOK)
+        const components: ActionRowBuilder<ButtonBuilder>[] = [row]
+        try {
+            message.channel.send({
+                content: `This prompt totals ${imageOptions.length} variations, the maximum possible is ${config.spamMaxBatchSize}, anything over that will be ignored. ${message.author} press OK to start a thread where this will be generated, else press Cancel.`,
+                components
+            }).then()
+        } catch (e) {
+            console.error('Failed to send spam thread message:', e.message)
+        }
+    }
+
     // endregion
 
     // region Prompts
-    static async promptUser(options: PromptUserOptions) {
+    static async promptUserForImageOptions(options: PromptUserOptions) {
         const textInput = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_PROMPT)
             .setLabel("The positive prompt, include elements.")
@@ -411,6 +439,63 @@ export default class DiscordCom {
     }
 
     // endregion
+    static async spamThreadCancelled(index: number, interaction: ButtonInteraction) {
+        const cache = this.getSpamThreadCache(index)
+        if(!cache || cache.userId !== interaction.user.id) {
+            try {
+                await interaction.reply({
+                    content: 'Only the creator can use this button.',
+                    ephemeral: true
+                })
+                return
+            } catch (e) {
+                console.error('Failed to reply to spam button press:', e.message)
+            }
+        }
+        try {
+            this.getSpamThreadCache(index, true)
+            interaction.message?.delete().then()
+        } catch (e) {
+            console.error('Failed to delete spam thread message:', e.message)
+        }
+    }
+    static async spamThreadOk(index: number|string, interaction: ButtonInteraction) {
+        const cache = this.getSpamThreadCache(index)
+        if(!cache || cache.userId !== interaction.user.id) {
+            try {
+                await interaction.reply({
+                    content: 'Only the creator can use this button.',
+                    ephemeral: true
+                })
+                return
+            } catch (e) {
+                console.error('Failed to reply to spam button press:', e.message)
+            }
+        }
+        try {
+            interaction.message.delete().then()
+        } catch (e) {
+            console.error('Failed to delete spam thread message:', e.message)
+        }
+        const textInput = new TextInputBuilder()
+            .setCustomId(Constants.INPUT_THREAD_TITLE)
+            .setLabel('A descriptive title for the spam thread.')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        const promptRow = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput)
+        const modal = new ModalBuilder()
+            .setCustomId(Constants.PROMPT_THREAD + '#' + index)
+            .setTitle('Thread Title')
+            .addComponents(promptRow)
+        await interaction.showModal(modal)
+    }
+
+    static getSpamThreadCache(index: number|string, andDelete: boolean = false): SpamThreadCache|undefined {
+        const cache = this._spamBatchCache.get(Number(index))
+        if(andDelete) this._spamBatchCache.delete(Number(index))
+        return cache
+    }
 }
 
 // region Sub Classes
@@ -492,6 +577,15 @@ export class PromptUserOptions {
         public interaction: ButtonInteraction | CommandInteraction | undefined,
         public index: string = '',
         public data: MessageDerivedData | undefined
+    ) {
+    }
+}
+
+export class SpamThreadCache {
+    constructor(
+        public index: number = 0,
+        public userId: string = '',
+        public options: ImageGenerationOptions[]
     ) {
     }
 }

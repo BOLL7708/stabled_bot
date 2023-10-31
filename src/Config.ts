@@ -32,7 +32,8 @@ export interface IConfig {
     botUserName: string
     progressBarSymbols: string[]
     progressBarFiller: string
-    maxSpamBatchSize: number
+    spamMaxBatchSize: number
+    spamThreadThreshold: number
     variationStrength: number
     maxPromptSizeInResponse: number
     alwaysOnHiresMode: boolean

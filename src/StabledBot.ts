@@ -1,5 +1,5 @@
-import Config, {IConfig} from './Config.js'
-import {ApplicationCommandOptionType, AttachmentBuilder, ButtonInteraction, ChannelType, Client, CommandInteraction, DMChannel, EmbedBuilder, Events, GatewayIntentBits, Message, ModalSubmitInteraction, Partials} from 'discord.js'
+import Config from './Config.js'
+import {ApplicationCommandOptionType, AttachmentBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, CommandInteraction, DMChannel, EmbedBuilder, Events, GatewayIntentBits, Message, ModalSubmitInteraction, Partials} from 'discord.js'
 import Tasks, {MessageDerivedData} from './Tasks.js'
 import dns from 'node:dns';
 import Constants from './Constants.js'
@@ -13,7 +13,6 @@ import DB from './DB.js'
 
 export default class StabledBot {
     private static helpCache: IStringDictionary = {}
-    private _config: IConfig
     private _dataCache = new Map<number, MessageDerivedData>()
     private _interactionIndex = 0
     private _spamTheadStates = new Map<string, boolean>() // Use methods to set this so it also updates the database.
@@ -37,7 +36,7 @@ export default class StabledBot {
 
     async start() {
         dns.setDefaultResultOrder('ipv4first');
-        this._config = await Config.get()
+        const config = await Config.get()
         this._db = new DB()
 
         // Register Stabled result listener
@@ -83,8 +82,8 @@ export default class StabledBot {
             Utils.log('Ready, logged in as', c.user.tag, c.user.username)
             loadProgressJob.start()
             try {
-                if (client.user.username != this._config.botUserName) {
-                    await c.user.setUsername(this._config.botUserName)
+                if (client.user.username != config.botUserName) {
+                    await c.user.setUsername(config.botUserName)
                 }
             } catch (e) {
                 console.error('Failed to update username:', e.message)
@@ -92,8 +91,8 @@ export default class StabledBot {
         })
 
         // Log in to Discord with your client's token
-        if (!this._config?.token) throw new Error('No token found in config.json or config.local.json')
-        else client.login(this._config.token).then()
+        if (!config?.token) throw new Error('No token found in config.json or config.local.json')
+        else client.login(config.token).then()
 
         client.on(Events.MessageCreate, async message => {
             const spamEnabled = await this.getSpamState(message.channelId)
@@ -107,17 +106,19 @@ export default class StabledBot {
             }) ?? []
 
             if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
-                gen(message.content, 'Spam served', false, this._config.maxSpamBatchSize)
+                gen(message.content, 'Spam served', false, config.spamMaxBatchSize)
             } else if (botTags.length > 0) {
                 const prompt = DiscordUtils.removeTagsFromContent(message.content)
-                gen(prompt, 'A quickie', true, this._config.maxSpamBatchSize)
+                gen(prompt, 'A quickie', true, config.spamMaxBatchSize)
             }
 
             function gen(input: string, response: string, fromMention: boolean, maxEntries: number = 64) {
                 const imageOptions = Utils.getImageOptionsFromInput(input)
-                for(const options of imageOptions.slice(0, maxEntries)) {
-                    options.count = 1
-                    enqueueGen(options, response, false, message, undefined, fromMention).then()
+                if (imageOptions.length > 1) Utils.log('Prompts generated from variation groups', imageOptions.length.toString(), message.author.username, Color.Reset, Color.FgCyan)
+                if (imageOptions.length > config.spamThreadThreshold && !message.channel.isDMBased()) {
+                    DiscordCom.sendSpamThreadMessage(imageOptions, message).then()
+                } else {
+                    batchEnqueueGen(imageOptions, response, message, fromMention).then()
                 }
             }
         })
@@ -151,7 +152,7 @@ export default class StabledBot {
                     case Constants.BUTTON_REDO: {
                         const nextIndex = this.getNextInteractionIndex()
                         this.setCachedData(nextIndex, data)
-                        await DiscordCom.promptUser(new PromptUserOptions(
+                        await DiscordCom.promptUserForImageOptions(new PromptUserOptions(
                             Constants.PROMPT_REDO,
                             "Random Seed",
                             interaction,
@@ -163,7 +164,7 @@ export default class StabledBot {
                     case Constants.BUTTON_EDIT: {
                         const nextIndex = this.getNextInteractionIndex()
                         this.setCachedData(nextIndex, data)
-                        await DiscordCom.promptUser(new PromptUserOptions(
+                        await DiscordCom.promptUserForImageOptions(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
                             "Recycle Seed",
                             interaction,
@@ -313,6 +314,15 @@ export default class StabledBot {
                         }
                         break
                     }
+                    case Constants.BUTTON_SPAM_THREAD_CANCEL: {
+                        if (interaction)
+                            DiscordCom.spamThreadCancelled(Number(payload), interaction).then()
+                        break
+                    }
+                    case Constants.BUTTON_SPAM_THREAD_OK: {
+                        DiscordCom.spamThreadOk(Number(payload), interaction).then()
+                        break
+                    }
                 }
                 // endregion
             } else if (interaction.isChatInputCommand()) {
@@ -334,7 +344,7 @@ export default class StabledBot {
                             const messageData = new MessageDerivedData()
                             messageData.genOptions = genOptions
                             messageData.spoiler = spoiler
-                            DiscordCom.promptUser(new PromptUserOptions(
+                            DiscordCom.promptUserForImageOptions(new PromptUserOptions(
                                 Constants.PROMPT_PROMPT,
                                 'New Seed',
                                 interaction,
@@ -346,6 +356,7 @@ export default class StabledBot {
                     }
                     case Constants.COMMAND_HELP: {
                         const subcommand = options.getSubcommand()
+
                         async function displayHelp(fileName: string, interaction: CommandInteraction) {
                             try {
                                 if (!StabledBot.helpCache.hasOwnProperty(fileName)) StabledBot.helpCache[fileName] = await fs.readFile(`./help/${fileName}.md`, 'utf8')
@@ -357,6 +368,7 @@ export default class StabledBot {
                                 console.error('Unable to load help:', e.message)
                             }
                         }
+
                         displayHelp(subcommand, interaction).then()
                         break
                     }
@@ -500,6 +512,27 @@ export default class StabledBot {
                         ).then()
                         break
                     }
+                    case Constants.PROMPT_THREAD: {
+                        interaction.deferUpdate().then()
+                        const title = interaction.fields.getTextInputValue(Constants.INPUT_THREAD_TITLE) ?? ''
+                        const cache = DiscordCom.getSpamThreadCache(Number(index), true)
+                        const channel = await DiscordUtils.getChannelFromInteraction(interaction)
+                        if (title.length && cache && channel && !(channel instanceof DMChannel)) {
+                            const threadChannel = await channel.threads.create({
+                                type: ChannelType.PublicThread,
+                                name: title
+                            })
+                            if (threadChannel) {
+                                const message = await threadChannel.send({
+                                    content: `Welcome to the spam thread ${interaction.user}, here we go!`
+                                })
+                                if (message) {
+                                    Utils.log('Spam thread created', threadChannel.id, interaction.user.username, Color.Reset, Color.FgCyan)
+                                    batchEnqueueGen(cache.options, 'Batch spam served', message, false).then()
+                                } else console.error('Failed to send welcome message in spam thread.')
+                            } else console.error('Failed to create spam thread.')
+                        }
+                    }
                 }
                 // endregion
             }
@@ -520,6 +553,15 @@ export default class StabledBot {
             genOptions.size = size
             genOptions.count = count
             return genOptions
+        }
+
+        async function batchEnqueueGen(imageOptions: ImageGenerationOptions[], response: string, message?: Message, fromMention?: boolean) {
+            const config = await Config.get()
+            if(imageOptions?.length !== 1) Utils.log('Prompts in batch cache', imageOptions?.length.toString(), message?.author.username, Color.Reset, Color.FgCyan)
+            for (const options of imageOptions?.slice(0, config.spamMaxBatchSize) ?? []) {
+                options.count = 1
+                if (options.prompt.trim().length > 0) enqueueGen(options, response, false, message, undefined, fromMention).then()
+            }
         }
 
         async function enqueueGen(
