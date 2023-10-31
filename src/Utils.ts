@@ -26,12 +26,13 @@ export default class Utils {
     }
 
     static async progressBarMessage(index: number | undefined, value: number): Promise<string> {
+        const config = await Config.get()
         const indexStr = !!index
             ? ` at #${index}`
             : ''
-        const bar = (await Config.get()).progressBarSymbols
+        const bar = config.progressBarSymbols
         const progress = Math.round(value * bar.length)
-        return `\`🎪 Working${indexStr}: ${bar.slice(0, progress).join('')}${'⚫'.repeat(bar.length - progress)} ${Math.round(value * 100)}%\``
+        return `\`🎪 Working${indexStr}: ${bar.slice(0, progress).join('')}${config.progressBarFiller.repeat(bar.length - progress)} ${Math.round(value * 100)}%\``
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {

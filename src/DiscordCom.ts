@@ -232,10 +232,11 @@ export default class DiscordCom {
 
         // Components
         const components: ActionRowBuilder<ButtonBuilder>[] = []
-        if (item.imageOptions.hires) {
-            row1.addComponents(deleteButton)
-            components.push(row1)
-        } else if (item.imageOptions.details) {
+        // if (item.imageOptions.hires) {
+        //     row1.addComponents(deleteButton)
+        //     components.push(row1)
+        // } else
+        if (item.imageOptions.details) {
             row1.addComponents(deleteButton, infoButton)
             components.push(row1)
         } else if (item.imageOptions.variation) {

@@ -3,6 +3,7 @@ import Utils, {IStringDictionary} from './Utils.js'
 import {MessageReference} from './DiscordCom.js'
 import StabledAPI, {ImageGenerationOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
+import Config from './Config.js'
 
 export default class Tasks {
     static async getAttachmentAndUpscale(
@@ -55,6 +56,7 @@ export default class Tasks {
     private static _lastQueueItemIndexStarted: number = 0
 
     static async updateProgressAndStartGenerations(client: Client | undefined) {
+        const config = await Config.get()
         const progress = await StabledAPI.getProgress()
         if (!progress) throw('Could not get progress.')
 
@@ -110,6 +112,7 @@ export default class Tasks {
             const item = StabledAPI.getNextInQueue()
             if (item) {
                 this._lastQueueItemIndexStarted = item.index
+                item.imageOptions.hires = config.alwaysOnHiresMode
                 StabledAPI.startGenerationOfImages(item).then()
             }
         }

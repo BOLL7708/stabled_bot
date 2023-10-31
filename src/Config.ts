@@ -31,7 +31,10 @@ export interface IConfig {
     timeoutMins: number
     botUserName: string
     progressBarSymbols: string[]
+    progressBarFiller: string
     maxSpamBatchSize: number
     variationStrength: number
     maxPromptSizeInResponse: number
+    alwaysOnHiresMode: boolean
+    samplerName: string
 }

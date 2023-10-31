@@ -63,6 +63,7 @@ export default class StabledAPI {
             steps: item.imageOptions.details ? 80 : 20,
             width,
             height,
+            sampler_name: config.samplerName,
             seed: isNaN(seed) ? -1 : seed
         }
 
