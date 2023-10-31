@@ -29,6 +29,7 @@ export default class Constants {
     static SUBCOMMAND_HELP_GENERAL = 'general'
     static SUBCOMMAND_HELP_SPAM = 'spam'
     static SUBCOMMAND_HELP_GEN = 'gen'
+    static SUBCOMMAND_HELP_BUTTONS = 'buttons'
 
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'

@@ -96,7 +96,11 @@ export default class DiscordCom {
                     .setName(Constants.SUBCOMMAND_HELP_GEN)
                     .setDescription('Show generation command help.')
             })
-
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_HELP_BUTTONS)
+                    .setDescription('Show result buttons help.')
+            })
 
         const spamCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_SPAM)
