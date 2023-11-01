@@ -30,7 +30,7 @@ export default class Tasks {
         } catch (e) {
             // console.error('Could not get user id:', e.message)
         }
-        data.genOptions.count = message.attachments.size
+        data.imageOptions.count = message.attachments.size
         data.seeds = DiscordUtils.getAttachmentSeedData(message.attachments.values())
         let attachment: IAttachment
         try {
@@ -43,9 +43,9 @@ export default class Tasks {
             const pngInfoResponse = await StabledAPI.getPNGInfo(attachment.data)
             const pngInfo = await Utils.parsePNGInfo(pngInfoResponse.info)
             if (pngInfo) {
-                data.genOptions.prompt = pngInfo.prompt
-                data.genOptions.negativePrompt = pngInfo.negativePrompt
-                data.genOptions.size = pngInfo.size
+                data.imageOptions.prompt = pngInfo.prompt
+                data.imageOptions.negativePrompt = pngInfo.negativePrompt
+                data.imageOptions.size = pngInfo.size
             }
         }
         return data
@@ -123,7 +123,7 @@ export class MessageDerivedData {
     public messageId: string = ''
     public userId: string = ''
     public seeds: ISeed[] = []
-    public genOptions: ImageGenerationOptions = new ImageGenerationOptions()
+    public imageOptions: ImageGenerationOptions = new ImageGenerationOptions()
     public spoiler: boolean = false
 }
 

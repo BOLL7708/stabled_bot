@@ -174,10 +174,10 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_VARY: {
-                        if (data.genOptions.count > 1) {
+                        if (data.imageOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.genOptions.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.imageOptions.count, interaction)
                             break
                         }
                     }
@@ -186,7 +186,7 @@ export default class StabledBot {
                         const buttonData = this.getDataForButton(payload)
                         const useData = buttonData.data ?? data
                         if (useData) {
-                            const genOptions = ImageGenerationOptions.newFrom(useData.genOptions)
+                            const genOptions = ImageGenerationOptions.newFrom(useData.imageOptions)
                             genOptions.count = 4
                             genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
                             genOptions.variation = true
@@ -197,10 +197,10 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_UPSCALE: {
-                        if (data.genOptions.count > 1) {
+                        if (data.imageOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.genOptions.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.imageOptions.count, interaction)
                             break
                         }
                     }
@@ -235,10 +235,10 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_DETAIL: {
-                        if (data.genOptions.count > 1) {
+                        if (data.imageOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
-                            await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.genOptions.count, interaction)
+                            await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.imageOptions.count, interaction)
                             break
                         }
                     }
@@ -247,7 +247,7 @@ export default class StabledBot {
                         const buttonData = this.getDataForButton(payload)
                         const useData = buttonData.data ?? data
                         if (useData) {
-                            const genOptions = ImageGenerationOptions.newFrom(useData.genOptions)
+                            const genOptions = ImageGenerationOptions.newFrom(useData.imageOptions)
                             genOptions.count = 1
                             genOptions.predefinedSeed = useData.seeds[buttonData.buttonIndex]
                             genOptions.details = true
@@ -258,14 +258,14 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_INFO: {
-                        if (data.genOptions.count > 1) {
+                        if (data.imageOptions.count > 1) {
                             const nextIndex = this.getNextInteractionIndex()
                             this.setCachedData(nextIndex, data)
                             DiscordCom.showButtons(
                                 Constants.BUTTON_INFO_CHOICE,
                                 'Pick which image to get information for:',
                                 nextIndex,
-                                data.genOptions.count,
+                                data.imageOptions.count,
                                 interaction
                             ).then()
                             break
@@ -330,19 +330,19 @@ export default class StabledBot {
                 const {commandName, options, user} = interaction
                 switch (commandName) {
                     case Constants.COMMAND_GEN: {
-                        const genOptions = new ImageGenerationOptions()
-                        genOptions.prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
-                        genOptions.negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
-                        const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
-                        genOptions.size = Utils.normalizeSize(aspectRatio)
-                        const countValue = options.get(Constants.OPTION_COUNT)?.value
-                        genOptions.count = countValue ? Number(countValue) : 4
+                        const imageOptions = new ImageGenerationOptions()
+                        imageOptions.prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_PROMPT) ?? ''
+                        imageOptions.negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT) ?? ''
+                        const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_SIZE) ?? '1:1'
+                        imageOptions.size = Utils.normalizeSize(aspectRatio)
+                        const countValue = options.get(Constants.OPTION_COUNT)?.value ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_COUNT)
+                        imageOptions.count = countValue ? Number(countValue) : 4
                         const spoiler = !!options.get(Constants.OPTION_SPOILER)?.value
-                        if (genOptions.prompt.length > 0) {
-                            enqueueGen(genOptions, 'Here you go', spoiler, undefined, interaction).then()
+                        if (imageOptions.prompt.length > 0) {
+                            enqueueGen(imageOptions, 'Here you go', spoiler, undefined, interaction).then()
                         } else {
                             const messageData = new MessageDerivedData()
-                            messageData.genOptions = genOptions
+                            messageData.imageOptions = imageOptions
                             messageData.spoiler = spoiler
                             DiscordCom.promptUserForImageOptions(new PromptUserOptions(
                                 Constants.PROMPT_PROMPT,
@@ -453,6 +453,26 @@ export default class StabledBot {
                                     console.error('Spam option failed:', e.message)
                                 }
                             }
+                        }
+                        break
+                    }
+                    case Constants.COMMAND_SET: {
+                        const prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString()
+                        const negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString()
+                        const size = options.get(Constants.OPTION_SIZE)?.value?.toString()
+                        const count = options.get(Constants.OPTION_COUNT)?.value.toString()
+                        let updateCount = 0
+                        if(prompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_PROMPT, prompt) ? updateCount++ : undefined
+                        if(negativePrompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT, negativePrompt) ? updateCount++ : undefined
+                        if(size !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_SIZE, size) ? updateCount++ : undefined
+                        if(count !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_COUNT, count) ? updateCount++ : undefined
+                        try {
+                            interaction.reply({
+                                ephemeral: true,
+                                content: `Updated ${updateCount} user settings.`
+                            })
+                        } catch(e) {
+                            console.error('Set reply failed:', e.message)
                         }
                         break
                     }

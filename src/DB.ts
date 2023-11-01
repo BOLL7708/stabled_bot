@@ -32,7 +32,7 @@ export default class DB {
         return this._db
     }
 
-    // region Prompts
+    // region Spam Threads
     private async ensureSpamThreadsTable() {
         const db = await this.getDb()
         await db.exec('CREATE TABLE IF NOT EXISTS spam_threads (id INTEGER PRIMARY KEY, channel_id TEXT UNIQUE)')
@@ -69,5 +69,32 @@ export default class DB {
         return false
     }
 
+    // endregion
+
+    // region User Settings
+    private async ensureUserSettingsTable() {
+        const db = await this.getDb()
+        await db.exec('CREATE TABLE IF NOT EXISTS user_settings (id INTEGER PRIMARY KEY, user_id TEXT, setting TEXT, value TEXT)')
+        await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS user_settings_index ON user_settings (user_id, setting)')
+    }
+    async setUserSetting(userId: string, setting: string, value: string): Promise<boolean> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserSettingsTable()
+            const stmt = await db.prepare('INSERT OR REPLACE INTO user_settings (user_id, setting, value) VALUES (?, ?, ?)')
+            const result = await stmt.run(userId, setting, value)
+            if (result.lastID) return true
+        }
+        return false
+    }
+    async getUserSetting(userId: string, setting: string): Promise<string | undefined> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserSettingsTable()
+            const result = await db.get('SELECT value FROM user_settings WHERE user_id = ? AND setting = ?', userId, setting)
+            if (result) return result.value
+        }
+        return undefined
+    }
     // endregion
 }

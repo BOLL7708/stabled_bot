@@ -13,11 +13,13 @@ export default class Constants {
     static BUTTON_DEAD = 'dead'
 
     static COMMAND_GEN = 'gen'
+    static COMMAND_SET = 'set'
     static OPTION_PROMPT = 'prompt'
     static OPTION_NEGATIVE_PROMPT = 'negative-prompt'
     static OPTION_COUNT = 'count'
     static OPTION_ASPECT_RATIO = 'aspect-ratio'
     static OPTION_SPOILER = 'spoiler'
+    static OPTION_SIZE = 'size'
 
     static COMMAND_SPAM = 'spam'
     static SUBCOMMAND_SPAM_THREAD = 'thread'

@@ -28,7 +28,7 @@ export default class Utils {
     static async progressBarMessage(index: number | undefined, value: number): Promise<string> {
         const config = await Config.get()
         const indexStr = !!index
-            ? ` at #${index}`
+            ? ` on #${index}`
             : ''
         const bar = config.progressBarSymbols
         const progress = Math.round(value * bar.length)

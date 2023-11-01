@@ -127,12 +127,37 @@ export default class DiscordCom {
                     .setName(Constants.SUBCOMMAND_SPAM_OFF)
                     .setDescription('Turn off spam mode in this channel.')
             })
+
+        const setCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_SET)
+            .setDescription('Set personal values for the bot.')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_PROMPT)
+                    .setDescription('Set default prompt.')
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_NEGATIVE_PROMPT)
+                    .setDescription('She default negative prompt.')
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_COUNT)
+                    .setDescription('She default count.')
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_SIZE)
+                    .setDescription('Set default size.')
+            })
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
                     genCommand.toJSON(),
                     helpCommand.toJSON(),
-                    spamCommand.toJSON()
+                    spamCommand.toJSON(),
+                    setCommand.toJSON(),
                 ]
             })
         } catch (e) {
@@ -400,7 +425,7 @@ export default class DiscordCom {
         const textInput = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_PROMPT)
             .setLabel("The positive prompt, include elements.")
-            .setValue(options.data.genOptions.prompt)
+            .setValue(options.data.imageOptions.prompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         const promptRow = new ActionRowBuilder<TextInputBuilder>()
@@ -408,7 +433,7 @@ export default class DiscordCom {
         const textInput2 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_NEGATIVE_PROMPT)
             .setLabel("The negative prompt, exclude elements.")
-            .setValue(options.data.genOptions.negativePrompt)
+            .setValue(options.data.imageOptions.negativePrompt)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false)
         const promptRow2 = new ActionRowBuilder<TextInputBuilder>()
@@ -416,7 +441,7 @@ export default class DiscordCom {
         const textInput3 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_SIZE)
             .setLabel("The size of the generated images.")
-            .setValue(options.data.genOptions.size)
+            .setValue(options.data.imageOptions.size)
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
         const promptRow3 = new ActionRowBuilder<TextInputBuilder>()
@@ -424,7 +449,7 @@ export default class DiscordCom {
         const textInput4 = new TextInputBuilder()
             .setCustomId(Constants.INPUT_NEW_COUNT)
             .setLabel("The number of images to generate, 1-10.")
-            .setValue(options.data.genOptions.count.toString())
+            .setValue(options.data.imageOptions.count.toString())
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
         const promptRow4 = new ActionRowBuilder<TextInputBuilder>()
