@@ -105,10 +105,14 @@ export default class StabledBot {
                 return group == client.user.id
             }) ?? []
 
+            let prompt = message.content
+            const userId = message.author.id
             if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
-                gen(message.content, 'Spam served', false, config.spamMaxBatchSize)
+                prompt = await this.applyUserParamsToPrompt(userId, prompt)
+                gen(prompt, 'Spam served', false, config.spamMaxBatchSize)
             } else if (botTags.length > 0) {
-                const prompt = DiscordUtils.removeTagsFromContent(message.content)
+                prompt = await this.applyUserParamsToPrompt(userId, prompt)
+                prompt = DiscordUtils.removeTagsFromContent(prompt)
                 gen(prompt, 'A quickie', true, config.spamMaxBatchSize)
             }
 
@@ -331,7 +335,9 @@ export default class StabledBot {
                 switch (commandName) {
                     case Constants.COMMAND_GEN: {
                         const imageOptions = new ImageGenerationOptions()
-                        imageOptions.prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_PROMPT) ?? ''
+                        let prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_PROMPT) ?? ''
+                        prompt = await this.applyUserParamsToPrompt(interaction.user.id, prompt)
+                        imageOptions.prompt = prompt
                         imageOptions.negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT) ?? ''
                         const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_SIZE) ?? '1:1'
                         imageOptions.size = Utils.normalizeSize(aspectRatio)
@@ -473,6 +479,23 @@ export default class StabledBot {
                             })
                         } catch(e) {
                             console.error('Set reply failed:', e.message)
+                        }
+                        break
+                    }
+                    case Constants.COMMAND_DEFINE: {
+                        let name = options.get(Constants.OPTION_DEFINE_NAME)?.value?.toString()
+                        const value = options.get(Constants.OPTION_DEFINE_VALUE)?.value?.toString()
+                        if(name && value) {
+                            name = name.toLowerCase().replaceAll(/\s/g, '')
+                            const updated = await this._db.setUserParam(interaction.user.id, name, value)
+                            try {
+                                interaction.reply({
+                                    ephemeral: true,
+                                    content: updated ? `Updated parameter "${name}" to "${value}".` : `Failed to update parameter "${name}".`
+                                })
+                            } catch(e) {
+                                console.error('Define reply failed:', e.message)
+                            }
                         }
                         break
                     }
@@ -687,5 +710,17 @@ export default class StabledBot {
     private async setSpamState(channelId: string, state: boolean) {
         this._spamTheadStates.set(channelId, state)
         state ? await this._db.registerSpamThread(channelId) : await this._db.unregisterSpamThread(channelId)
+    }
+
+    private async applyUserParamsToPrompt(userId: string, prompt: string): Promise<string> {
+        const matches = [...prompt.matchAll(/(--\S+)/gm)]
+        for(const match of matches) {
+            const [replaceStr, param] = match
+            if (replaceStr && param) {
+                const value = await this._db.getUserParam(userId, param.substring(2))
+                if(value) prompt = Utils.replaceSubstring(prompt, match.index, replaceStr.length, value)
+            }
+        }
+        return prompt
     }
 }

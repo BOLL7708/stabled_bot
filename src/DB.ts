@@ -97,4 +97,34 @@ export default class DB {
         return undefined
     }
     // endregion
+
+    // region User Params
+    private async ensureUserParamsTable() {
+        const db = await this.getDb()
+        await db.exec('CREATE TABLE IF NOT EXISTS user_params (id INTEGER PRIMARY KEY, user_id TEXT, name TEXT, value TEXT)')
+        await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS user_params_index ON user_params (user_id, name)')
+    }
+
+    async setUserParam(userId: string, name: string, value: string): Promise<boolean> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserParamsTable()
+            const stmt = await db.prepare('INSERT OR REPLACE INTO user_params (user_id, name, value) VALUES (?, ?, ?)')
+            const result = await stmt.run(userId, name, value)
+            if (result.lastID) return true
+        }
+        return false
+    }
+
+    async getUserParam(userId: string, name: string): Promise<string | undefined> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserParamsTable()
+            const result = await db.get('SELECT value FROM user_params WHERE user_id = ? AND name = ?', userId, name)
+            if (result) return result.value
+        }
+        return undefined
+    }
+
+    // endregion
 }

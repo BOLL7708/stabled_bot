@@ -151,6 +151,21 @@ export default class DiscordCom {
                     .setName(Constants.OPTION_SIZE)
                     .setDescription('Set default size.')
             })
+        const defineCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_DEFINE)
+            .setDescription('Define a parameter used with --param')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_DEFINE_NAME)
+                    .setDescription('Define the name of the parameter.')
+                    .setRequired(true)
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_DEFINE_VALUE)
+                    .setDescription('Define the value of the parameter.')
+                    .setRequired(true)
+            })
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
@@ -158,6 +173,7 @@ export default class DiscordCom {
                     helpCommand.toJSON(),
                     spamCommand.toJSON(),
                     setCommand.toJSON(),
+                    defineCommand.toJSON()
                 ]
             })
         } catch (e) {

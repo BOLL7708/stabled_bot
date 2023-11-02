@@ -33,6 +33,10 @@ export default class Constants {
     static SUBCOMMAND_HELP_GEN = 'gen'
     static SUBCOMMAND_HELP_BUTTONS = 'buttons'
 
+    static COMMAND_DEFINE = 'define'
+    static OPTION_DEFINE_NAME = 'name'
+    static OPTION_DEFINE_VALUE = 'value'
+
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'
     static PROMPT_REDO = 'prompt-redo'
