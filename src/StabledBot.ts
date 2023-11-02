@@ -109,15 +109,15 @@ export default class StabledBot {
             const userId = message.author.id
             if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
                 prompt = await this.applyUserParamsToPrompt(userId, prompt)
-                gen(prompt, 'Spam served', false, config.spamMaxBatchSize)
+                gen(userId, this._db, prompt, 'Spam served', false, config.spamMaxBatchSize).then()
             } else if (botTags.length > 0) {
                 prompt = await this.applyUserParamsToPrompt(userId, prompt)
                 prompt = DiscordUtils.removeTagsFromContent(prompt)
-                gen(prompt, 'A quickie', true, config.spamMaxBatchSize)
+                gen(userId, this._db, prompt, 'A quickie', true, config.spamMaxBatchSize).then()
             }
 
-            function gen(input: string, response: string, fromMention: boolean, maxEntries: number = 64) {
-                const imageOptions = Utils.getImageOptionsFromInput(input)
+            async function gen(userId: string, db: DB, input: string, response: string, fromMention: boolean, maxEntries: number = 64) {
+                const imageOptions = await Utils.getImageOptionsFromInput(input, userId, db)
                 if (imageOptions.length > 1) Utils.log('Prompts generated from variation groups', imageOptions.length.toString(), message.author.username, Color.Reset, Color.FgCyan)
                 if (imageOptions.length > config.spamThreadThreshold && !message.channel.isDMBased()) {
                     DiscordCom.sendSpamThreadMessage(imageOptions, message).then()

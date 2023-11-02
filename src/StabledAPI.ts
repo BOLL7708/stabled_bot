@@ -52,7 +52,7 @@ export default class StabledAPI {
 
         Utils.log('Starting', `${item.imageOptions.count} image(s)`, `#${item.index} ` + item.reference.getConsoleLabel(), Color.FgYellow)
         await this.ensureAPI()
-        const [width, height] = item.imageOptions.size.split('x')
+        const [width, height] = item.imageOptions.size.split(/[^.\d]+/)
 
         const seed = Number(item.imageOptions.predefinedSeed?.seed)
         const subseed = Number(item.imageOptions.predefinedSeed?.variantSeed)

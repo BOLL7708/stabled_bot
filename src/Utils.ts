@@ -1,5 +1,7 @@
 import Config from './Config.js'
 import {ImageGenerationOptions} from './StabledAPI.js'
+import DB from './DB.js'
+import Constants from './Constants.js'
 
 export default class Utils {
     static normalizeSize(arbitrarySize: string): string {
@@ -96,7 +98,7 @@ export default class Utils {
             .replace(/\W/g, '') // Remove non-word characters
     }
 
-    static getImageOptionsFromInput(input: string): ImageGenerationOptions[] {
+    static async getImageOptionsFromInput(input: string, userId: string, db: DB): Promise<ImageGenerationOptions[]> {
         /**
          * Recursive function that generates all the possible combinations of alt values.
          * @param input
@@ -131,6 +133,7 @@ export default class Utils {
         const result: ImageGenerationOptions[] = []
         for (const alt of alternatives) {
             let [altPrompt, negativePrompt] = alt.prompt.split(';')
+
             const sizeMatch = altPrompt.match(/\{([.\d]+.+[.\d]+)}/m)
             let size: string
             if (sizeMatch) {
@@ -138,11 +141,14 @@ export default class Utils {
                 altPrompt = this.replaceSubstring(altPrompt, sizeMatch.index, replaceStr.length, '')
                 if (group) size = Utils.normalizeSize(group)
             }
+            const dbSize = await db.getUserSetting(userId, Constants.OPTION_SIZE)
+            if(!size && dbSize) size = Utils.normalizeSize(dbSize)
+
             const newOptions = new ImageGenerationOptions()
             newOptions.prompt = altPrompt
             newOptions.promptHints = alt.hints
-            if (negativePrompt?.length) newOptions.negativePrompt = negativePrompt
-            if (size?.length) newOptions.size = size
+            newOptions.negativePrompt = negativePrompt?.length ? negativePrompt : await db.getUserSetting(userId, Constants.OPTION_NEGATIVE_PROMPT) ?? ''
+            if(size) newOptions.size = size
             result.push(newOptions)
         }
         return result
