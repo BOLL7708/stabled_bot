@@ -103,6 +103,16 @@ export default class DiscordCom {
                     .setName(Constants.SUBCOMMAND_HELP_BUTTONS)
                     .setDescription('Show result buttons help.')
             })
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_HELP_PARAMS)
+                    .setDescription('Show parameter help.')
+            })
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_HELP_SETTINGS)
+                    .setDescription('Show settings help.')
+            })
 
         const spamCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_SPAM)
@@ -151,36 +161,45 @@ export default class DiscordCom {
                     .setName(Constants.OPTION_SIZE)
                     .setDescription('Set default size.')
             })
-        const defineCommand = new SlashCommandBuilder()
-            .setName(Constants.COMMAND_DEFINE)
+
+        const paramCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_PARAM)
             .setDescription('Add a parameter used with --param')
-            .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_DEFINE_NAME)
-                    .setDescription('The name of the parameter.')
-                    .setRequired(true)
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_PARAM_SET)
+                    .setDescription('Set a parameter.')
+                    .addStringOption(option => {
+                        return option
+                            .setName(Constants.OPTION_PARAM_NAME)
+                            .setDescription('The name of the parameter.')
+                            .setRequired(true)
+                    })
+                    .addStringOption(option => {
+                        return option
+                            .setName(Constants.OPTION_PARAM_VALUE)
+                            .setDescription('The value of the parameter.')
+                            .setRequired(true)
+                    })
             })
-            .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_DEFINE_VALUE)
-                    .setDescription('The value of the parameter.')
-                    .setRequired(true)
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_PARAM_UNSET)
+                    .setDescription('Unset a parameter.')
+                    .addStringOption(option => {
+                        return option
+                            .setName(Constants.OPTION_PARAM_NAME)
+                            .setDescription('The name of the parameter.')
+                            .setRequired(true)
+                    })
             })
-        const undefineCommand = new SlashCommandBuilder()
-            .setName(Constants.COMMAND_UNDEFINE)
-            .setDescription('Remove a user parameter')
-            .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_DEFINE_NAME)
-                    .setDescription('The name of the parameter.')
-                    .setRequired(true)
-            })
+
         const listCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_LIST)
             .setDescription('List your personal data.')
             .addSubcommand(subcommand => {
                 return subcommand
-                    .setName(Constants.SUBCOMMAND_LIST_DEFINES)
+                    .setName(Constants.SUBCOMMAND_LIST_PARAMS)
                     .setDescription('List your defined parameters.')
             })
             .addSubcommand(subcommand => {
@@ -195,8 +214,7 @@ export default class DiscordCom {
                     helpCommand.toJSON(),
                     spamCommand.toJSON(),
                     setCommand.toJSON(),
-                    defineCommand.toJSON(),
-                    undefineCommand.toJSON(),
+                    paramCommand.toJSON(),
                     listCommand.toJSON()
                 ]
             })

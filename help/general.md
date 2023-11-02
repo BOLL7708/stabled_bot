@@ -1,4 +1,5 @@
 # General Usage
+
 * There are two slash commands available for generation, see `/help spam` and `/help gen` for how to use them.
 * When the result is available, there will be buttons attached to the message, see `/help buttons` for more information.
 

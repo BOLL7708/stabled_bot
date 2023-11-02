@@ -119,7 +119,7 @@ export default class StabledBot {
             async function gen(userId: string, db: DB, input: string, response: string, fromMention: boolean, maxEntries: number = 64) {
                 const imageOptions = await Utils.getImageOptionsFromInput(input, userId, db)
                 if (imageOptions.length > 1) Utils.log('Prompts generated from variation groups', imageOptions.length.toString(), message.author.username, Color.Reset, Color.FgCyan)
-                if (imageOptions.length > config.spamThreadThreshold && !message.channel.isDMBased()) {
+                if (imageOptions.length > config.spamThreadThreshold && !message.channel.isDMBased() && !message.channel.isThread()) {
                     DiscordCom.sendSpamThreadMessage(imageOptions, message).then()
                 } else {
                     batchEnqueueGen(imageOptions, response, message, fromMention).then()
@@ -468,48 +468,53 @@ export default class StabledBot {
                         const size = options.get(Constants.OPTION_SIZE)?.value?.toString()
                         const count = options.get(Constants.OPTION_COUNT)?.value.toString()
                         let updateCount = 0
-                        if(prompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_PROMPT, prompt) ? updateCount++ : undefined
-                        if(negativePrompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT, negativePrompt) ? updateCount++ : undefined
-                        if(size !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_SIZE, size) ? updateCount++ : undefined
-                        if(count !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_COUNT, count) ? updateCount++ : undefined
+                        if (prompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_PROMPT, prompt) ? updateCount++ : undefined
+                        if (negativePrompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT, negativePrompt) ? updateCount++ : undefined
+                        if (size !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_SIZE, size) ? updateCount++ : undefined
+                        if (count !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_COUNT, count) ? updateCount++ : undefined
                         try {
                             interaction.reply({
                                 ephemeral: true,
                                 content: `Updated ${updateCount} user settings.`
                             })
-                        } catch(e) {
+                        } catch (e) {
                             console.error('Set reply failed:', e.message)
                         }
                         break
                     }
-                    case Constants.COMMAND_DEFINE: {
-                        let name = options.get(Constants.OPTION_DEFINE_NAME)?.value?.toString()
-                        const value = options.get(Constants.OPTION_DEFINE_VALUE)?.value?.toString()
-                        if(name && value) {
-                            name = name.toLowerCase().replaceAll(/\s/g, '')
-                            const updated = await this._db.setUserParam(interaction.user.id, name, value)
-                            try {
-                                interaction.reply({
-                                    ephemeral: true,
-                                    content: updated ? `Updated parameter "${name}" to "${value}".` : `Failed to update parameter "${name}".`
-                                })
-                            } catch(e) {
-                                console.error('Define reply failed:', e.message)
+                    case Constants.COMMAND_PARAM: {
+                        let name = options.get(Constants.OPTION_PARAM_NAME)?.value?.toString()
+                        const value = options.get(Constants.OPTION_PARAM_VALUE)?.value?.toString()
+                        const subcommand = options.getSubcommand()
+                        switch (subcommand) {
+                            case Constants.SUBCOMMAND_PARAM_SET: {
+                                if (name && value) {
+                                    name = name.toLowerCase().replaceAll(/\s/g, '')
+                                    const updated = await this._db.setUserParam(interaction.user.id, name, value)
+                                    try {
+                                        interaction.reply({
+                                            ephemeral: true,
+                                            content: updated ? `Set parameter "${name}" to "${value}".` : `Failed to update parameter "${name}".`
+                                        })
+                                    } catch (e) {
+                                        console.error('Set param reply failed:', e.message)
+                                    }
+                                }
+                                break
                             }
-                        }
-                        break
-                    }
-                    case Constants.COMMAND_UNDEFINE: {
-                        const name = options.get(Constants.OPTION_DEFINE_NAME)?.value?.toString()
-                        if(name) {
-                            const deleted = await this._db.deleteUserParam(interaction.user.id, name)
-                            try {
-                                interaction.reply({
-                                    ephemeral: true,
-                                    content: deleted ? `Deleted parameter "${name}".` : `Failed to delete parameter "${name}".`
-                                })
-                            } catch(e) {
-                                console.error('Undefine reply failed:', e.message)
+                            case Constants.SUBCOMMAND_PARAM_UNSET: {
+                                if (name) {
+                                    const deleted = await this._db.deleteUserParam(interaction.user.id, name)
+                                    try {
+                                        interaction.reply({
+                                            ephemeral: true,
+                                            content: deleted ? `Deleted parameter "${name}".` : `Failed to delete parameter "${name}".`
+                                        })
+                                    } catch (e) {
+                                        console.error('Unset param reply failed:', e.message)
+                                    }
+                                }
+                                break
                             }
                         }
                         break
@@ -517,12 +522,12 @@ export default class StabledBot {
                     case Constants.COMMAND_LIST: {
                         const subcommand = options.getSubcommand()
                         const userId = interaction.user.id
-                        switch(subcommand) {
+                        switch (subcommand) {
                             case Constants.SUBCOMMAND_LIST_SETTINGS: {
                                 const settings = await this._db.getAllUserSettings(userId)
                                 try {
                                     interaction.reply({
-                                        content: 'User settings: ```json\n'+JSON.stringify(settings, null, 2)+'```',
+                                        content: 'User settings: ```json\n' + JSON.stringify(settings, null, 2) + '```',
                                         ephemeral: true,
                                     })
                                 } catch (e) {
@@ -530,11 +535,11 @@ export default class StabledBot {
                                 }
                                 break
                             }
-                            case Constants.SUBCOMMAND_LIST_DEFINES: {
+                            case Constants.SUBCOMMAND_LIST_PARAMS: {
                                 const defines = await this._db.getAllUserParams(userId)
                                 try {
                                     interaction.reply({
-                                        content: 'User defined parameters: ```json\n'+JSON.stringify(defines, null, 2)+'```',
+                                        content: 'User defined parameters: ```json\n' + JSON.stringify(defines, null, 2) + '```',
                                         ephemeral: true,
                                     })
                                 } catch (e) {
@@ -646,7 +651,7 @@ export default class StabledBot {
 
         async function batchEnqueueGen(imageOptions: ImageGenerationOptions[], response: string, message?: Message, fromMention?: boolean) {
             const config = await Config.get()
-            if(imageOptions?.length !== 1) Utils.log('Prompts in batch cache', imageOptions?.length.toString(), message?.author.username, Color.Reset, Color.FgCyan)
+            if (imageOptions?.length !== 1) Utils.log('Prompts in batch cache', imageOptions?.length.toString(), message?.author.username, Color.Reset, Color.FgCyan)
             for (const options of imageOptions?.slice(0, config.spamMaxBatchSize) ?? []) {
                 options.count = 1
                 if (options.prompt.trim().length > 0) enqueueGen(options, response, false, message, undefined, fromMention).then()
@@ -760,11 +765,11 @@ export default class StabledBot {
 
     private async applyUserParamsToPrompt(userId: string, prompt: string): Promise<string> {
         const matches = [...prompt.matchAll(/(--\S+)/gm)]
-        for(const match of matches) {
+        for (const match of matches) {
             const [replaceStr, param] = match
             if (replaceStr && param) {
                 const value = await this._db.getUserParam(userId, param.substring(2))
-                if(value) prompt = Utils.replaceSubstring(prompt, match.index, replaceStr.length, value)
+                if (value) prompt = Utils.replaceSubstring(prompt, match.index, replaceStr.length, value)
             }
         }
         return prompt

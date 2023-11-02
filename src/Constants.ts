@@ -32,14 +32,17 @@ export default class Constants {
     static SUBCOMMAND_HELP_SPAM = 'spam'
     static SUBCOMMAND_HELP_GEN = 'gen'
     static SUBCOMMAND_HELP_BUTTONS = 'buttons'
+    static SUBCOMMAND_HELP_PARAMS = 'params'
+    static SUBCOMMAND_HELP_SETTINGS = 'settings'
 
-    static COMMAND_DEFINE = 'define'
-    static COMMAND_UNDEFINE = 'undefine'
-    static OPTION_DEFINE_NAME = 'name'
-    static OPTION_DEFINE_VALUE = 'value'
+    static COMMAND_PARAM = 'param'
+    static SUBCOMMAND_PARAM_SET = 'set'
+    static SUBCOMMAND_PARAM_UNSET = 'unset'
+    static OPTION_PARAM_NAME = 'name'
+    static OPTION_PARAM_VALUE = 'value'
 
     static COMMAND_LIST = 'list'
-    static SUBCOMMAND_LIST_DEFINES = 'defines'
+    static SUBCOMMAND_LIST_PARAMS = 'params'
     static SUBCOMMAND_LIST_SETTINGS = 'settings'
 
     static PROMPT_PROMPT = 'prompt-prompt'

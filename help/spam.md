@@ -19,8 +19,8 @@ You can format your message for some advanced options:
 ### Variations
 
 * Square brackets with comma separated values will create one generation per value, for example `A [red,green,blue] cat` will create three prompts with the same base but with each color separately: `A red cat`, `A green cat`, `A blue cat`.
-  * You can use multiple groups of square brackets in one message, all possible variations will be generated, until you hit a set limit. `[1,2,3]x cute [cats,dogs]` will generate six (3*2) different prompts.
-  * Square bracket groups are replaced first, so they can be used everywhere in the prompt and still work, to vary the format and/or negative prompt as well.
+    * You can use multiple groups of square brackets in one message, all possible variations will be generated, until you hit a set limit. `[1,2,3]x cute [cats,dogs]` will generate six (3*2) different prompts.
+    * Square bracket groups are replaced first, so they can be used everywhere in the prompt and still work, to vary the format and/or negative prompt as well.
 
 ### Format
 
