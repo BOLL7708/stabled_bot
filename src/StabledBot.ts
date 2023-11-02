@@ -499,6 +499,52 @@ export default class StabledBot {
                         }
                         break
                     }
+                    case Constants.COMMAND_UNDEFINE: {
+                        const name = options.get(Constants.OPTION_DEFINE_NAME)?.value?.toString()
+                        if(name) {
+                            const deleted = await this._db.deleteUserParam(interaction.user.id, name)
+                            try {
+                                interaction.reply({
+                                    ephemeral: true,
+                                    content: deleted ? `Deleted parameter "${name}".` : `Failed to delete parameter "${name}".`
+                                })
+                            } catch(e) {
+                                console.error('Undefine reply failed:', e.message)
+                            }
+                        }
+                        break
+                    }
+                    case Constants.COMMAND_LIST: {
+                        const subcommand = options.getSubcommand()
+                        const userId = interaction.user.id
+                        switch(subcommand) {
+                            case Constants.SUBCOMMAND_LIST_SETTINGS: {
+                                const settings = await this._db.getAllUserSettings(userId)
+                                try {
+                                    interaction.reply({
+                                        content: 'User settings: ```json\n'+JSON.stringify(settings, null, 2)+'```',
+                                        ephemeral: true,
+                                    })
+                                } catch (e) {
+                                    console.error('Failed to reply to list command.', e.message)
+                                }
+                                break
+                            }
+                            case Constants.SUBCOMMAND_LIST_DEFINES: {
+                                const defines = await this._db.getAllUserParams(userId)
+                                try {
+                                    interaction.reply({
+                                        content: 'User defined parameters: ```json\n'+JSON.stringify(defines, null, 2)+'```',
+                                        ephemeral: true,
+                                    })
+                                } catch (e) {
+                                    console.error('Failed to reply to list command.', e.message)
+                                }
+                                break
+                            }
+                        }
+                        break
+                    }
                     default: {
                         try {
                             interaction.reply({

@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3'
 import {Database, open} from 'sqlite'
 import fs from 'fs/promises'
+import {IStringDictionary} from './Utils.js'
 
 /**
  * Class that handles database operations.
@@ -96,6 +97,19 @@ export default class DB {
         }
         return undefined
     }
+    async getAllUserSettings(userId): Promise<IStringDictionary> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserSettingsTable()
+            const result = await db.all('SELECT setting, value FROM user_settings WHERE user_id = ?', userId)
+            const settings: IStringDictionary = {}
+            for (const row of result) {
+                settings[row.setting] = row.value
+            }
+            return settings
+        }
+        return {}
+    }
     // endregion
 
     // region User Params
@@ -126,5 +140,28 @@ export default class DB {
         return undefined
     }
 
+    async getAllUserParams(userId: string): Promise<IStringDictionary> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserParamsTable()
+            const result = await db.all('SELECT name, value FROM user_params WHERE user_id = ?', userId)
+            const params: IStringDictionary = {}
+            for (const row of result) {
+                params[row.name] = row.value
+            }
+            return params
+        }
+        return {}
+    }
+
+    async deleteUserParam(userId: string, name: string): Promise<boolean> {
+        const db = await this.getDb()
+        if (db) {
+            await this.ensureUserParamsTable()
+            const result = await db.run('DELETE FROM user_params WHERE user_id = ? AND name = ?', userId, name)
+            if (result.changes > 0) return true
+        }
+        return false
+    }
     // endregion
 }

@@ -34,8 +34,13 @@ export default class Constants {
     static SUBCOMMAND_HELP_BUTTONS = 'buttons'
 
     static COMMAND_DEFINE = 'define'
+    static COMMAND_UNDEFINE = 'undefine'
     static OPTION_DEFINE_NAME = 'name'
     static OPTION_DEFINE_VALUE = 'value'
+
+    static COMMAND_LIST = 'list'
+    static SUBCOMMAND_LIST_DEFINES = 'defines'
+    static SUBCOMMAND_LIST_SETTINGS = 'settings'
 
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'

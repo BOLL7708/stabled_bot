@@ -153,18 +153,40 @@ export default class DiscordCom {
             })
         const defineCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_DEFINE)
-            .setDescription('Define a parameter used with --param')
+            .setDescription('Add a parameter used with --param')
             .addStringOption(option => {
                 return option
                     .setName(Constants.OPTION_DEFINE_NAME)
-                    .setDescription('Define the name of the parameter.')
+                    .setDescription('The name of the parameter.')
                     .setRequired(true)
             })
             .addStringOption(option => {
                 return option
                     .setName(Constants.OPTION_DEFINE_VALUE)
-                    .setDescription('Define the value of the parameter.')
+                    .setDescription('The value of the parameter.')
                     .setRequired(true)
+            })
+        const undefineCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_UNDEFINE)
+            .setDescription('Remove a user parameter')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_DEFINE_NAME)
+                    .setDescription('The name of the parameter.')
+                    .setRequired(true)
+            })
+        const listCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_LIST)
+            .setDescription('List your personal data.')
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_LIST_DEFINES)
+                    .setDescription('List your defined parameters.')
+            })
+            .addSubcommand(subcommand => {
+                return subcommand
+                    .setName(Constants.SUBCOMMAND_LIST_SETTINGS)
+                    .setDescription('List your settings.')
             })
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
@@ -173,7 +195,9 @@ export default class DiscordCom {
                     helpCommand.toJSON(),
                     spamCommand.toJSON(),
                     setCommand.toJSON(),
-                    defineCommand.toJSON()
+                    defineCommand.toJSON(),
+                    undefineCommand.toJSON(),
+                    listCommand.toJSON()
                 ]
             })
         } catch (e) {
