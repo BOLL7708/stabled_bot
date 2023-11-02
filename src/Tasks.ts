@@ -64,6 +64,7 @@ export default class Tasks {
         const isWorking = (progress.state?.job_count ?? 0) > 0
         const queueSize = StabledAPI.getQueueSize()
         const noMoreWork = !isWorking && queueSize <= 0
+        const totalSteps = progress.state.sampling_steps * progress.state.job_count
 
         // Presence
         const currentWorkIndex = currentQueueItem?.index ?? 0
@@ -73,7 +74,7 @@ export default class Tasks {
         const newActivity = noMoreWork
             ? 'Idle 💤'
             : (progress.progress > 0 && currentWorkIndex > 0)
-                ? `Work ⏳${Math.round(100 * progress.progress)}% #️⃣${currentWorkIndex}`
+                ? `Work ⏳${Math.round(100 * progress.progress)}% #️⃣${currentWorkIndex} 🦶${totalSteps}`
                 : `Work 💾`
         if (progress && client && (this._currentStatus !== newStatus || this._currentActivity !== newActivity)) {
             this._currentStatus = newStatus
@@ -99,7 +100,7 @@ export default class Tasks {
                 const hasMention = DiscordUtils.getTagsFromContent(message.content).length > 0
                 if (!hasMention) {
                     await message.edit({
-                        content: await Utils.progressBarMessage(currentQueueItem?.index, progress.progress)
+                        content: await Utils.progressBarMessage(currentQueueItem?.index, progress.progress, totalSteps)
                     })
                 } else console.log('Avoided updating progress as result has already been posted.')
             }

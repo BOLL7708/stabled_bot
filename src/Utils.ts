@@ -1,6 +1,5 @@
 import Config from './Config.js'
 import {ImageGenerationOptions} from './StabledAPI.js'
-import * as repl from 'repl'
 
 export default class Utils {
     static normalizeSize(arbitrarySize: string): string {
@@ -25,14 +24,20 @@ export default class Utils {
         return arr.join('-')
     }
 
-    static async progressBarMessage(index: number | undefined, value: number): Promise<string> {
+    static async progressBarMessage(index: number | undefined, value: number, steps: number): Promise<string> {
+        const length = steps / 5
         const config = await Config.get()
         const indexStr = !!index
             ? ` on #${index}`
             : ''
-        const bar = config.progressBarSymbols
+        const symbols = config.progressBarSymbols
+        const bar = Array.from({length}, (_, i) => i).map(i => symbols[i % symbols.length]) // Set the value of the array to the index
         const progress = Math.round(value * bar.length)
-        return `\`🎪 Working${indexStr}: ${bar.slice(0, progress).join('')}${config.progressBarFiller.repeat(bar.length - progress)} ${Math.round(value * 100)}%\``
+        return `🎪 Working${indexStr}: ${
+            bar.slice(0, progress)
+                .join('')}${config.progressBarFiller
+            .repeat(bar.length - progress)
+        } ${Math.round(value * 100)}%`
     }
 
     static log(title: string, value: string, byUser: string, color: string = Color.Reset, valueColor?: string) {
@@ -131,7 +136,7 @@ export default class Utils {
             if (sizeMatch) {
                 const [replaceStr, group] = sizeMatch
                 altPrompt = this.replaceSubstring(altPrompt, sizeMatch.index, replaceStr.length, '')
-                if(group) size = Utils.normalizeSize(group)
+                if (group) size = Utils.normalizeSize(group)
             }
             const newOptions = new ImageGenerationOptions()
             newOptions.prompt = altPrompt

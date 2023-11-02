@@ -1,4 +1,4 @@
-import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Interaction, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
+import {ActionRowBuilder, APIEmbed, ApplicationCommandType, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, CommandInteraction, DMChannel, Message, ModalBuilder, ModalSubmitInteraction, REST, Routes, SlashCommandBuilder, TextChannel, TextInputBuilder, TextInputStyle, User} from 'discord.js'
 import Config from './Config.js'
 import Constants from './Constants.js'
 import DiscordUtils from './DiscordUtils.js'
@@ -193,7 +193,7 @@ export default class DiscordCom {
     ): Promise<MessageReference> {
         let sentMessage: Message | undefined
         try {
-            const queuedMessage = `\`⏰ Queued: ${source}, #${index}\``
+            const queuedMessage = `⏰ Queued: ${source}, #${index}`
             if (interaction instanceof ButtonInteraction || interaction instanceof ModalSubmitInteraction) {
                 // To these we respond as a separate message, as button menus are ephemeral and will create missing references.
                 await interaction?.deferUpdate()
@@ -482,7 +482,7 @@ export default class DiscordCom {
     // endregion
     static async spamThreadCancelled(index: number, interaction: ButtonInteraction) {
         const cache = this.getSpamThreadCache(index)
-        if(!cache || cache.userId !== interaction.user.id) {
+        if (!cache || cache.userId !== interaction.user.id) {
             try {
                 await interaction.reply({
                     content: 'Only the creator can use this button.',
@@ -500,9 +500,10 @@ export default class DiscordCom {
             console.error('Failed to delete spam thread message:', e.message)
         }
     }
-    static async spamThreadOk(index: number|string, interaction: ButtonInteraction) {
+
+    static async spamThreadOk(index: number | string, interaction: ButtonInteraction) {
         const cache = this.getSpamThreadCache(index)
-        if(!cache || cache.userId !== interaction.user.id) {
+        if (!cache || cache.userId !== interaction.user.id) {
             try {
                 await interaction.reply({
                     content: 'Only the creator can use this button.',
@@ -532,9 +533,9 @@ export default class DiscordCom {
         await interaction.showModal(modal)
     }
 
-    static getSpamThreadCache(index: number|string, andDelete: boolean = false): SpamThreadCache|undefined {
+    static getSpamThreadCache(index: number | string, andDelete: boolean = false): SpamThreadCache | undefined {
         const cache = this._spamBatchCache.get(Number(index))
-        if(andDelete) this._spamBatchCache.delete(Number(index))
+        if (andDelete) this._spamBatchCache.delete(Number(index))
         return cache
     }
 }
