@@ -108,10 +108,10 @@ export default class StabledBot {
             let prompt = message.content
             const userId = message.author.id
             if (spamEnabled && allTags.length == 0 && mentionCount == 0) {
-                prompt = await this.applyUserParamsToPrompt(userId, prompt)
+                prompt = await Utils.applyUserParamsToPrompt(this._db, userId, prompt)
                 gen(userId, this._db, prompt, 'Spam served', false, config.spamMaxBatchSize).then()
             } else if (botTags.length > 0) {
-                prompt = await this.applyUserParamsToPrompt(userId, prompt)
+                prompt = await Utils.applyUserParamsToPrompt(this._db, userId, prompt)
                 prompt = DiscordUtils.removeTagsFromContent(prompt)
                 gen(userId, this._db, prompt, 'A quickie', true, config.spamMaxBatchSize).then()
             }
@@ -336,7 +336,7 @@ export default class StabledBot {
                     case Constants.COMMAND_GEN: {
                         const imageOptions = new ImageGenerationOptions()
                         let prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_PROMPT) ?? ''
-                        prompt = await this.applyUserParamsToPrompt(interaction.user.id, prompt)
+                        prompt = await Utils.applyUserParamsToPrompt(this._db, interaction.user.id, prompt)
                         imageOptions.prompt = prompt
                         imageOptions.negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT) ?? ''
                         const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_SIZE) ?? '1:1'
@@ -562,9 +562,6 @@ export default class StabledBot {
                     }
                 }
                 // endregion
-            } else if (interaction.isUserContextMenuCommand()) {
-                // TODO: This appears to not get triggered, it goes into slash commands instead?
-                console.log(interaction)
             } else if (interaction.isModalSubmit()) {
                 // region Modals
                 Utils.log('Modal result received', interaction.customId, interaction.user.username, Color.Reset, Color.FgCyan)
@@ -572,7 +569,7 @@ export default class StabledBot {
                 switch (type) {
                     case Constants.PROMPT_EDIT: {
                         const data = this.getCachedData(index)
-                        const genOptions = getPromptValues(interaction)
+                        const genOptions = await getPromptValues(this._db, interaction)
                         genOptions.predefinedSeed = data?.seeds.shift()
                         enqueueGen(
                             genOptions,
@@ -585,7 +582,7 @@ export default class StabledBot {
                     }
                     case Constants.PROMPT_REDO: {
                         const data = this.getCachedData(index)
-                        const genOptions = getPromptValues(interaction)
+                        const genOptions = await getPromptValues(this._db, interaction)
                         enqueueGen(
                             genOptions,
                             'Here you go again',
@@ -596,7 +593,7 @@ export default class StabledBot {
                         break
                     }
                     case Constants.PROMPT_PROMPT: {
-                        const genOptions = getPromptValues(interaction)
+                        const genOptions = await getPromptValues(this._db, interaction)
                         enqueueGen(
                             genOptions,
                             'Here it is',
@@ -632,7 +629,7 @@ export default class StabledBot {
             }
         })
 
-        function getPromptValues(interaction: ModalSubmitInteraction): ImageGenerationOptions {
+        async function getPromptValues(db: DB, interaction: ModalSubmitInteraction): Promise<ImageGenerationOptions> {
             const countValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_COUNT) ?? '4'
             let count = Number(countValue)
             if (isNaN(count)) count = 4
@@ -642,7 +639,7 @@ export default class StabledBot {
             const size = Utils.normalizeSize(sizeValue)
 
             const genOptions = new ImageGenerationOptions()
-            genOptions.prompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? ''
+            genOptions.prompt = await Utils.applyUserParamsToPrompt(db, interaction.user.id, interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? '')
             genOptions.negativePrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
             genOptions.size = size
             genOptions.count = count
@@ -761,17 +758,5 @@ export default class StabledBot {
     private async setSpamState(channelId: string, state: boolean) {
         this._spamTheadStates.set(channelId, state)
         state ? await this._db.registerSpamThread(channelId) : await this._db.unregisterSpamThread(channelId)
-    }
-
-    private async applyUserParamsToPrompt(userId: string, prompt: string): Promise<string> {
-        const matches = [...prompt.matchAll(/(--\S+)/gm)]
-        for (const match of matches) {
-            const [replaceStr, param] = match
-            if (replaceStr && param) {
-                const value = await this._db.getUserParam(userId, param.substring(2))
-                if (value) prompt = Utils.replaceSubstring(prompt, match.index, replaceStr.length, value)
-            }
-        }
-        return prompt
     }
 }

@@ -159,6 +159,18 @@ export default class Utils {
         const tail = input.slice(index + length)
         return head + replacement + tail;
     }
+
+    static async applyUserParamsToPrompt(db: DB, userId: string, prompt: string): Promise<string> {
+        const matches = [...prompt.matchAll(/(--\S+)/gm)]
+        for (const match of matches) {
+            const [replaceStr, param] = match
+            if (replaceStr && param) {
+                const value = await db.getUserParam(userId, param.substring(2))
+                if (value) prompt = this.replaceSubstring(prompt, match.index, replaceStr.length, value)
+            }
+        }
+        return prompt
+    }
 }
 
 export class PngInfo {
