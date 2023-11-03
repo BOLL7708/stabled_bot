@@ -1,4 +1,4 @@
-# `/gen`
+# `/gen` Image Generation Command
 
 ## Command Usage
 

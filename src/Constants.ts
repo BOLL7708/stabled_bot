@@ -28,12 +28,12 @@ export default class Constants {
     static SUBCOMMAND_SPAM_OFF = 'off'
 
     static COMMAND_HELP = 'help'
-    static SUBCOMMAND_HELP_GENERAL = 'general'
-    static SUBCOMMAND_HELP_SPAM = 'spam'
-    static SUBCOMMAND_HELP_GEN = 'gen'
-    static SUBCOMMAND_HELP_BUTTONS = 'buttons'
-    static SUBCOMMAND_HELP_PARAMS = 'params'
-    static SUBCOMMAND_HELP_SETTINGS = 'settings'
+    static SUBCOMMAND_HELP_GENERAL = '1-general'
+    static SUBCOMMAND_HELP_GEN = '2-gen'
+    static SUBCOMMAND_HELP_BUTTONS = '3-buttons'
+    static SUBCOMMAND_HELP_SPAM = '4-spam'
+    static SUBCOMMAND_HELP_SETTINGS = '5-settings'
+    static SUBCOMMAND_HELP_PARAMS = '6-params'
 
     static COMMAND_PARAM = 'param'
     static SUBCOMMAND_PARAM_SET = 'set'

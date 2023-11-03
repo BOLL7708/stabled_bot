@@ -1,4 +1,4 @@
-# `/param`
+# `/param` User Parameters
 
 A command to set a parameter that will be substituted when used in a prompt. The parameter will be replaced before any other processing of the prompt, so you can use other features inside of parameters.
 

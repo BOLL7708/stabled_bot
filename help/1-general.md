@@ -1,7 +1,8 @@
 # General Usage
 
-* There are two slash commands available for generation, see `/help spam` and `/help gen` for how to use them.
-* When the result is available, there will be buttons attached to the message, see `/help buttons` for more information.
+1. There are two slash commands available for generation, see the `/help` options for `gen` and `spam` for how to use them.
+2. For user specific settings and advanced generation, you can check out the `settings` and `params` part of the help.
+3. When the result is available, there will be buttons attached to the message, see the `buttons` help for more information.
 
 # Project Information
 

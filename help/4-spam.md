@@ -1,4 +1,4 @@
-# `/spam`
+# `/spam` Chat Message Prompts
 
 ## Command Usage
 

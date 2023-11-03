@@ -1,6 +1,6 @@
-# `/set`
+# `/set` User Settings
 
-## User Settings
+## Command Usage
 
 You can set the default values used for a number of prompt settings if they are not provided, or automatically filled in if opening the editor.
 
