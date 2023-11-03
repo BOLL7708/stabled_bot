@@ -22,8 +22,10 @@ export default class StabledBot {
         return ++this._interactionIndex
     }
 
-    private setCachedData(index: number | string, data: MessageDerivedData) {
+    private setCachedData(data: MessageDerivedData) {
+        const index = this.getNextInteractionIndex()
         this._dataCache.set(Number(index), data)
+        return index
     }
 
     private getCachedData(index: number | string, deleteCache: boolean = true): MessageDerivedData | undefined {
@@ -122,7 +124,7 @@ export default class StabledBot {
                 if (imageOptions.length > config.spamThreadThreshold && !message.channel.isDMBased() && !message.channel.isThread()) {
                     DiscordCom.sendSpamThreadMessage(imageOptions, message).then()
                 } else {
-                    batchEnqueueGen(imageOptions, response, message, fromMention).then()
+                    batchEnqueueGen(imageOptions, userId, response, message, fromMention).then()
                 }
             }
         })
@@ -154,8 +156,7 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_REDO: {
-                        const nextIndex = this.getNextInteractionIndex()
-                        this.setCachedData(nextIndex, data)
+                        const nextIndex = this.setCachedData(data)
                         await DiscordCom.promptUserForImageOptions(new PromptUserOptions(
                             Constants.PROMPT_REDO,
                             "Random Seed",
@@ -166,8 +167,7 @@ export default class StabledBot {
                         break
                     }
                     case Constants.BUTTON_EDIT: {
-                        const nextIndex = this.getNextInteractionIndex()
-                        this.setCachedData(nextIndex, data)
+                        const nextIndex = this.setCachedData(data)
                         await DiscordCom.promptUserForImageOptions(new PromptUserOptions(
                             Constants.PROMPT_EDIT,
                             "Recycle Seed",
@@ -179,8 +179,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_VARY: {
                         if (data.imageOptions.count > 1) {
-                            const nextIndex = this.getNextInteractionIndex()
-                            this.setCachedData(nextIndex, data)
+                            const nextIndex = this.setCachedData(data)
                             await DiscordCom.showButtons(Constants.BUTTON_VARY_CHOICE, 'Pick which image to make variations for:', nextIndex, data.imageOptions.count, interaction)
                             break
                         }
@@ -202,8 +201,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_UPSCALE: {
                         if (data.imageOptions.count > 1) {
-                            const nextIndex = this.getNextInteractionIndex()
-                            this.setCachedData(nextIndex, data)
+                            const nextIndex = this.setCachedData(data)
                             await DiscordCom.showButtons(Constants.BUTTON_UPSCALE_CHOICE, 'Pick which image to up-scale:', nextIndex, data.imageOptions.count, interaction)
                             break
                         }
@@ -240,8 +238,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_DETAIL: {
                         if (data.imageOptions.count > 1) {
-                            const nextIndex = this.getNextInteractionIndex()
-                            this.setCachedData(nextIndex, data)
+                            const nextIndex = this.setCachedData(data)
                             await DiscordCom.showButtons(Constants.BUTTON_DETAIL_CHOICE, 'Pick which image to generate more details for:', nextIndex, data.imageOptions.count, interaction)
                             break
                         }
@@ -263,8 +260,7 @@ export default class StabledBot {
                     }
                     case Constants.BUTTON_INFO: {
                         if (data.imageOptions.count > 1) {
-                            const nextIndex = this.getNextInteractionIndex()
-                            this.setCachedData(nextIndex, data)
+                            const nextIndex = this.setCachedData(data)
                             DiscordCom.showButtons(
                                 Constants.BUTTON_INFO_CHOICE,
                                 'Pick which image to get information for:',
@@ -619,7 +615,7 @@ export default class StabledBot {
                                 })
                                 if (message) {
                                     Utils.log('Spam thread created', threadChannel.id, interaction.user.username, Color.Reset, Color.FgCyan)
-                                    batchEnqueueGen(cache.options, 'Batch spam served', message, false).then()
+                                    batchEnqueueGen(cache.options, cache.userId, 'Batch spam served', message, false).then()
                                 } else console.error('Failed to send welcome message in spam thread.')
                             } else console.error('Failed to create spam thread.')
                         }
@@ -646,12 +642,12 @@ export default class StabledBot {
             return genOptions
         }
 
-        async function batchEnqueueGen(imageOptions: ImageGenerationOptions[], response: string, message?: Message, fromMention?: boolean) {
+        async function batchEnqueueGen(imageOptions: ImageGenerationOptions[], userId: string, response: string, message?: Message, fromMention?: boolean) {
             const config = await Config.get()
             if (imageOptions?.length !== 1) Utils.log('Prompts in batch cache', imageOptions?.length.toString(), message?.author.username, Color.Reset, Color.FgCyan)
             for (const options of imageOptions?.slice(0, config.spamMaxBatchSize) ?? []) {
                 options.count = 1
-                if (options.prompt.trim().length > 0) enqueueGen(options, response, false, message, undefined, fromMention).then()
+                if (options.prompt.trim().length > 0) enqueueGen(options, response, false, message, undefined, fromMention, userId).then()
             }
         }
 
@@ -661,7 +657,8 @@ export default class StabledBot {
             spoiler: boolean,
             message?: Message,
             interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
-            fromMention?: boolean
+            fromMention?: boolean,
+            userIdOverride?: string
         ) {
             try {
                 const index = StabledAPI.getNextQueueIndex()
@@ -671,13 +668,14 @@ export default class StabledBot {
                 if (imageOptions.variation) source = ESource.Variation
                 if (imageOptions.details) source = ESource.Detail
                 const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, message, interaction)
+                if (userIdOverride) reference.userId = userIdOverride
 
                 // Generate
                 const postOptions = new PostOptions()
                 const user = await reference.getUser(client)
 
                 // We ignore tagging the user if it's the bot user, which now for some reason happens for batch posts, which is fine but I don't know why.
-                postOptions.message = user.id == client.user.id ? `${messageStart}!` : `${messageStart} ${user}!`
+                postOptions.message = `${messageStart} ${user}!`
 
                 postOptions.spoiler = spoiler
                 const queueItem = new QueueItem(index, reference, imageOptions, postOptions)
