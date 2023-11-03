@@ -675,7 +675,10 @@ export default class StabledBot {
                 // Generate
                 const postOptions = new PostOptions()
                 const user = await reference.getUser(client)
-                postOptions.message = `${messageStart} ${user}!`
+
+                // We ignore tagging the user if it's the bot user, which now for some reason happens for batch posts, which is fine but I don't know why.
+                postOptions.message = user.id == client.user.id ? `${messageStart}!` : `${messageStart} ${user}!`
+
                 postOptions.spoiler = spoiler
                 const queueItem = new QueueItem(index, reference, imageOptions, postOptions)
                 StabledAPI.enqueueGeneration(queueItem)
