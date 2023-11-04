@@ -27,6 +27,9 @@ export default class Constants {
     static SUBCOMMAND_SPAM_ON = 'on'
     static SUBCOMMAND_SPAM_OFF = 'off'
 
+    static COMMAND_CANCEL = 'cancel'
+    static OPTION_CANCEL_SELECTION = 'selection'
+
     static COMMAND_HELP = 'help'
     static SUBCOMMAND_HELP_GENERAL = '1-general'
     static SUBCOMMAND_HELP_GEN = '2-gen'

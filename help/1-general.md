@@ -3,6 +3,7 @@
 1. There are two slash commands available for generation, see the `/help` options for `gen` and `spam` for how to use them.
 2. For user specific settings and advanced generation, you can check out the `settings` and `params` part of the help.
 3. When the result is available, there will be buttons attached to the message, see the `buttons` help for more information.
+4. If you regret any yet to be done generations, you can use `/cancel` to remove a selection of queued items.
 
 # Project Information
 

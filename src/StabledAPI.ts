@@ -180,6 +180,35 @@ export default class StabledAPI {
         this._queue.delete(item.index)
     }
 
+    static unregisterQueueItemsForUser(userId: string, single: number = 0, start: number = 0, end: number = 0, all: boolean = false): MessageReference[] {
+        const references: MessageReference[] = []
+        if(single) {
+            const item = this._queue.get(single)
+            if(item?.reference.userId === userId) {
+                references.push(item.reference)
+                this._queue.delete(single)
+            }
+        }
+        if(start && end) {
+            for(let i = start; i <= end; i++) {
+                const item = this._queue.get(i)
+                if(item?.reference.userId === userId) {
+                    references.push(item.reference)
+                    this._queue.delete(i)
+                }
+            }
+        }
+        if(all) {
+            this._queue.forEach((item, index) => {
+                if(item.reference.userId === userId) {
+                    references.push(item.reference)
+                    this._queue.delete(index)
+                }
+            })
+        }
+        return references
+    }
+
     static getNextInQueue(): QueueItem | undefined {
         return this._queue.values().next().value
     }

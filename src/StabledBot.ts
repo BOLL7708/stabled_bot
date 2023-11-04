@@ -546,6 +546,42 @@ export default class StabledBot {
                         }
                         break
                     }
+                    case Constants.COMMAND_CANCEL: {
+                        const selection = options.get(Constants.OPTION_CANCEL_SELECTION)?.value?.toString()
+                        if(selection) {
+                            const all = selection.trim() == '*'
+                            const [start, end] = selection.split('-')
+                            const startIndex = Number(start)
+                            const endIndex = Number(end)
+                            const single = Number(selection)
+                            const references = StabledAPI.unregisterQueueItemsForUser(interaction.user.id, single, startIndex, endIndex, all)
+                            try {
+                                interaction.reply({
+                                    ephemeral: true,
+                                    content: `Will attempt to cancel ${references.length} generation(s).`
+                                })
+                            } catch (e) {
+                                console.error('Cancel reply failed:', e.message)
+                            }
+                            for(const reference of references) {
+                                try {
+                                    reference.getMessage(client).then(message => {
+                                        if(message) message.delete().then()
+                                    })
+                                } catch (e) {
+                                    console.error('Removing cancelled message failed:', e.message)
+                                }
+                            }
+                        } else {
+                            try {
+                                await interaction.deferReply()
+                                interaction.deleteReply().then()
+                            } catch (e) {
+                                console.error('Cancel cancellation failed:', e.message)
+                            }
+                        }
+                        break
+                    }
                     default: {
                         try {
                             interaction.reply({

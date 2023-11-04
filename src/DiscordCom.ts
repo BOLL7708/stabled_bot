@@ -207,6 +207,17 @@ export default class DiscordCom {
                     .setName(Constants.SUBCOMMAND_LIST_SETTINGS)
                     .setDescription('List your settings.')
             })
+        const cancelCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_CANCEL)
+            .setDescription('Cancel queued generations.')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_CANCEL_SELECTION)
+                    .setDescription('Single: #, range: #-#, all: *')
+                    .setRequired(true)
+            })
+
+        // Submit the commands
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
                 body: [
@@ -215,7 +226,8 @@ export default class DiscordCom {
                     spamCommand.toJSON(),
                     setCommand.toJSON(),
                     paramCommand.toJSON(),
-                    listCommand.toJSON()
+                    listCommand.toJSON(),
+                    cancelCommand.toJSON()
                 ]
             })
         } catch (e) {
