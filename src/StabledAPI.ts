@@ -60,7 +60,9 @@ export default class StabledAPI {
             prompt: item.imageOptions.prompt,
             negative_prompt: item.imageOptions.negativePrompt,
             n_iter: item.imageOptions.count,
-            steps: item.imageOptions.details ? 80 : 20,
+            steps: item.imageOptions.details
+                ? config.stepCountBase * config.stepCountDetailMultiplier
+                : config.stepCountBase,
             width,
             height,
             sampler_name: config.samplerName,

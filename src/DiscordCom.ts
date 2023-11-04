@@ -230,12 +230,13 @@ export default class DiscordCom {
         index: number,
         source: ESource,
         fromMention: boolean,
+        stepCount: number,
         message?: Message,
         interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction
     ): Promise<MessageReference> {
         let sentMessage: Message | undefined
         try {
-            const queuedMessage = `⏰ Queued: ${source}, #${index}`
+            const queuedMessage = `⏰ Queued: ${source}(${stepCount}), #${index}`
             if (interaction instanceof ButtonInteraction || interaction instanceof ModalSubmitInteraction) {
                 // To these we respond as a separate message, as button menus are ephemeral and will create missing references.
                 await interaction?.deferUpdate()

@@ -38,4 +38,6 @@ export interface IConfig {
     maxPromptSizeInResponse: number
     alwaysOnHiresMode: boolean
     samplerName: string
+    stepCountBase: number
+    stepCountDetailMultiplier: number
 }

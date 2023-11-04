@@ -6,12 +6,14 @@
   "serverAddress": "http://localhost:7860",
   "timeoutMins": 5,
   "botUserName": "Stabled",
-  "progressBarSymbols": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
-  "progressBarFiller": " ",
+  "progressBarSymbols": ["🟢"],
+  "progressBarFiller": "⭕",
   "variationStrength": 0.1,
   "maxPromptSizeInResponse": 32,
   "alwaysOnHiresMode": false,
   "samplerName": "Euler",
   "spamMaxBatchSize": 16,
-  "spamThreadThreshold": 8
+  "spamThreadThreshold": 8,
+  "stepCountBase": 20,
+  "stepCountDetailMultiplier": 4
 }

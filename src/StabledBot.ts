@@ -660,6 +660,7 @@ export default class StabledBot {
             fromMention?: boolean,
             userIdOverride?: string
         ) {
+            const config = await Config.get()
             try {
                 const index = StabledAPI.getNextQueueIndex()
                 let source: ESource = ESource.Generate
@@ -667,7 +668,10 @@ export default class StabledBot {
                 if (imageOptions.hires) source = ESource.Upres
                 if (imageOptions.variation) source = ESource.Variation
                 if (imageOptions.details) source = ESource.Detail
-                const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, message, interaction)
+                let stepCount = imageOptions.details
+                    ? config.stepCountBase * config.stepCountDetailMultiplier
+                    : config.stepCountBase * imageOptions.count
+                const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, stepCount, message, interaction)
                 if (userIdOverride) reference.userId = userIdOverride
 
                 // Generate
