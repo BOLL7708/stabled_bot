@@ -210,7 +210,18 @@ export default class StabledAPI {
     }
 
     static getNextInQueue(): QueueItem | undefined {
-        return this._queue.values().next().value
+        const nonBatchQueue = new Map<number, QueueItem>();
+        for (const [key, value] of this._queue) {
+            if (!value.isBatch) {
+                nonBatchQueue.set(key, value);
+                break
+            }
+        }
+        if(nonBatchQueue.size > 0) {
+            return nonBatchQueue.values().next().value
+        } else {
+            return this._queue.values().next().value
+        }
     }
 
     static getQueueSize(): number {
@@ -247,6 +258,7 @@ export class ImageGenerationOptions {
 export class QueueItem {
     constructor(
         public index: number,
+        public isBatch: boolean,
         public reference: MessageReference,
         public imageOptions: ImageGenerationOptions,
         public postOptions: PostOptions

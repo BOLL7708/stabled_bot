@@ -683,7 +683,7 @@ export default class StabledBot {
             if (imageOptions?.length !== 1) Utils.log('Prompts in batch cache', imageOptions?.length.toString(), message?.author.username, Color.Reset, Color.FgCyan)
             for (const options of imageOptions?.slice(0, config.spamMaxBatchSize) ?? []) {
                 options.count = 1
-                if (options.prompt.trim().length > 0) enqueueGen(options, response, false, message, undefined, fromMention, userId).then()
+                if (options.prompt.trim().length > 0) enqueueGen(options, response, false, message, undefined, fromMention, userId, imageOptions.length > config.spamThreadThreshold).then()
             }
         }
 
@@ -694,7 +694,8 @@ export default class StabledBot {
             message?: Message,
             interaction?: ButtonInteraction | CommandInteraction | ModalSubmitInteraction,
             fromMention?: boolean,
-            userIdOverride?: string
+            userIdOverride?: string,
+            isBatch?: boolean
         ) {
             const config = await Config.get()
             try {
@@ -718,7 +719,7 @@ export default class StabledBot {
                 postOptions.message = `${messageStart} ${user}!`
 
                 postOptions.spoiler = spoiler
-                const queueItem = new QueueItem(index, reference, imageOptions, postOptions)
+                const queueItem = new QueueItem(index, !!isBatch, reference, imageOptions, postOptions)
                 StabledAPI.enqueueGeneration(queueItem)
             } catch (e) {
                 console.error(e)
