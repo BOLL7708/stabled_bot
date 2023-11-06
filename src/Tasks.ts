@@ -4,6 +4,7 @@ import {MessageReference} from './DiscordCom.js'
 import StabledAPI, {ImageGenerationOptions} from './StabledAPI.js'
 import DiscordUtils, {IAttachment, ISeed} from './DiscordUtils.js'
 import Config from './Config.js'
+import {ESource} from './StabledBot.js'
 
 export default class Tasks {
     static async getAttachmentAndUpscale(
@@ -100,7 +101,7 @@ export default class Tasks {
                 const hasMention = DiscordUtils.getTagsFromContent(message.content).length > 0
                 if (!hasMention) {
                     await message.edit({
-                        content: await Utils.progressBarMessage(currentQueueItem?.index, progress.progress, totalSteps)
+                        content: await Utils.progressBarMessage(currentQueueItem?.index, currentQueueItem?.source ?? ESource.Unknown, progress.progress, totalSteps)
                     })
                 } else console.log('Avoided updating progress as result has already been posted.')
             }

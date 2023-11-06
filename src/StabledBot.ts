@@ -5,7 +5,7 @@ import dns from 'node:dns';
 import Constants from './Constants.js'
 import {CronJob} from 'cron'
 import Utils, {Color, IStringDictionary} from './Utils.js'
-import DiscordCom, {ESource, MessageReference, PostOptions, PromptUserOptions} from './DiscordCom.js'
+import DiscordCom, {MessageReference, PostOptions, PromptUserOptions} from './DiscordCom.js'
 import StabledAPI, {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
 import DiscordUtils, {IAttachment} from './DiscordUtils.js'
 import fs from 'fs/promises'
@@ -719,7 +719,7 @@ export default class StabledBot {
                 postOptions.message = `${messageStart} ${user}!`
 
                 postOptions.spoiler = spoiler
-                const queueItem = new QueueItem(index, !!isBatch, reference, imageOptions, postOptions)
+                const queueItem = new QueueItem(index, source, !!isBatch, reference, imageOptions, postOptions)
                 StabledAPI.enqueueGeneration(queueItem)
             } catch (e) {
                 console.error(e)
@@ -801,4 +801,14 @@ export default class StabledBot {
         this._spamTheadStates.set(channelId, state)
         state ? await this._db.registerSpamThread(channelId) : await this._db.unregisterSpamThread(channelId)
     }
+}
+
+export enum ESource {
+    Unknown = 'unknown',
+    Generate = 'generation',
+    Recycle = 'recycling',
+    Variation = 'variations',
+    Detail = 'details',
+    Upscale = 'up-scaling',
+    Upres = 'up-ressing'
 }

@@ -3,6 +3,7 @@ import {MessageReference, PostOptions} from './DiscordCom.js'
 import Config from './Config.js'
 import Utils, {Color, IStringDictionary} from './Utils.js'
 import {ISeed} from './DiscordUtils.js'
+import {ESource} from './StabledBot.js'
 
 export default class StabledAPI {
     private static _api: AxiosInstance
@@ -258,6 +259,7 @@ export class ImageGenerationOptions {
 export class QueueItem {
     constructor(
         public index: number,
+        public source: ESource,
         public isBatch: boolean,
         public reference: MessageReference,
         public imageOptions: ImageGenerationOptions,

@@ -26,16 +26,16 @@ export default class Utils {
         return arr.join('-')
     }
 
-    static async progressBarMessage(index: number | undefined, value: number, steps: number): Promise<string> {
+    static async progressBarMessage(index: number | undefined, source: string, value: number, steps: number): Promise<string> {
         const length = steps / 5
         const config = await Config.get()
         const indexStr = !!index
-            ? ` on #${index}`
+            ? ` #${index}`
             : ''
         const symbols = config.progressBarSymbols
         const bar = Array.from({length}, (_, i) => i).map(i => symbols[i % symbols.length]) // Set the value of the array to the index
         const progress = Math.round(value * bar.length)
-        return `🎪 Working${indexStr}: ${
+        return `🎪 Working on: ${source}${indexStr}: ${
             bar.slice(0, progress)
                 .join('')}${config.progressBarFiller
             .repeat(bar.length - progress)

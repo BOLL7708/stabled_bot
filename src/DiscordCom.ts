@@ -5,6 +5,7 @@ import DiscordUtils from './DiscordUtils.js'
 import Utils, {Color, IStringDictionary} from './Utils.js'
 import {MessageDerivedData} from './Tasks.js'
 import {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
+import {ESource} from './StabledBot.js'
 
 export default class DiscordCom {
     private static _rest: REST
@@ -596,16 +597,6 @@ export default class DiscordCom {
 }
 
 // region Sub Classes
-export enum ESource {
-    Unknown = 'unknown',
-    Generate = 'generation',
-    Recycle = 'recycling',
-    Variation = 'variations',
-    Detail = 'details',
-    Upscale = 'up-scaling',
-    Upres = 'up-ressing'
-}
-
 export class MessageReference {
     constructor(
         public userId: string = '',
