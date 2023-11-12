@@ -48,6 +48,39 @@ export default class DiscordUtils {
             )
     }
 
+    static buildFontOption(option: SlashCommandStringOption) {
+        return option
+            .setName(Constants.OPTION_FONT)
+            .setDescription('Font to use.')
+            .addChoices(
+                {name: 'Arial', value: 'Arial'},
+                {name: 'Calibri', value: 'Calibri'},
+                {name: 'Comic Sans', value: 'Comic Sans MS'},
+                {name: 'Courier New', value: 'Courier New'},
+                {name: 'Digital-7', value: 'Digital-7'},
+                {name: 'Franklin Gothic', value: 'Franklin Gothic'},
+                {name: 'Gabriola', value: 'Gabriola'},
+                {name: 'Georgia', value: 'Georgia'},
+                {name: 'Good Times', value: 'Good Times'},
+                {name: 'Gothic', value: 'MS Gothic'},
+                {name: 'Ink Free', value: 'Ink Free'},
+                {name: 'Leelawadee', value: 'Leelawadee UI'},
+                {name: 'Liberation Mono', value: 'Liberation Mono'},
+                {name: 'Liberation Sans', value: 'Liberation Sans'},
+                {name: 'Liberation Serif', value: 'Liberation Serif'},
+                {name: 'Merriweather Sans', value: 'Merriweather Sans'},
+                {name: 'MingLiU', value: 'MingLiU'},
+                {name: 'Noto Serif', value: 'Noto Serif'},
+                {name: 'Oswald', value: 'Oswald'},
+                {name: 'SimSun', value: 'SimSun'},
+                {name: 'Times New Roman', value: 'Times New Roman'},
+                {name: 'Trebuchet', value: 'Trebuchet MS'},
+                {name: 'Verdana', value: 'Verdana'},
+                {name: 'YaHei', value: 'Microsoft YaHei'},
+                {name: 'Yu Gothic', value: 'Yu Gothic'},
+            )
+    }
+
     // endregion
 
     // region Getters

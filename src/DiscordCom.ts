@@ -204,10 +204,7 @@ export default class DiscordCom {
                     .setRequired(true)
             })
             .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_FONT)
-                    .setDescription('The font to use.')
-                    .setRequired(false)
+                return DiscordUtils.buildFontOption(option)
             })
             .addStringOption(option => {
                 return option
@@ -314,7 +311,7 @@ export default class DiscordCom {
         const message = await item.reference.getMessage(client)
         if (!message) throw('Could not get message.')
 
-        let attachments = Object.entries(item.postOptions.images).map(([fileName, imageData]) => {
+        const attachments = Object.entries(item.postOptions.images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {
                 name: `${fileName}.png`
             }).setSpoiler(item.postOptions.spoiler)
@@ -370,7 +367,7 @@ export default class DiscordCom {
         }
 
         // Reply
-        if(item.imageOptions.sourceImage.length > 0) attachments = [attachments[0]]
+        if(item.imageOptions.sourceImage.length > 0) attachments.pop() // Last image is the control net one.
         try {
             Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, `#${item.index} ` + item.reference.getConsoleLabel(), Color.FgGray)
             const max = config.maxPromptSizeInResponse

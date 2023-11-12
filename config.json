@@ -16,5 +16,6 @@
   "spamThreadThreshold": 8,
   "stepCountBase": 20,
   "stepCountDetailMultiplier": 4,
-  "stepCountTextMultiplier": 2
+  "stepCountTextMultiplier": 2,
+  "imageCountForTextGenerations": 1
 }

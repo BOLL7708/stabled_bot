@@ -597,7 +597,7 @@ export default class StabledBot {
                             const imageStr = ImageUtils.getImageWithText(text, fontSize, font, bold, italic, size)
                             if(prompt.length) {
                                 const imageOptions = new ImageGenerationOptions()
-                                imageOptions.count = 1
+                                imageOptions.count = config.imageCountForTextGenerations
                                 imageOptions.size = size
                                 imageOptions.prompt = prompt
                                 imageOptions.negativePrompt = negativePrompt
@@ -752,7 +752,7 @@ export default class StabledBot {
                 let stepCount = imageOptions.details
                     ? config.stepCountBase * config.stepCountDetailMultiplier
                     : imageOptions.sourceImage.length > 0
-                        ? config.stepCountBase * config.stepCountTextMultiplier
+                        ? config.stepCountBase * config.stepCountTextMultiplier * config.imageCountForTextGenerations
                         : config.stepCountBase * imageOptions.count
                 const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, stepCount, message, interaction)
                 if (userIdOverride) reference.userId = userIdOverride

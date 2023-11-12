@@ -92,15 +92,16 @@ export default class StabledAPI {
                 "ControlNet": {
                     "args": [
                         { // TODO: Tweak this?
-                            "model": "control_v11p_sd15_canny [d14c016b]",
-                            "module": "canny",
+                            "model": "control_v11f1p_sd15_depth [cfd03158]",
+                            "module": "none",
+                            "weight": 1.25,
                             "resize_mode": "Crop and Resize",
                             "lowvram": true,
                             "pixel_perfect": true,
                             "guidance": 1.0,
                             "guidance_start": 0.0,
                             "guidance_end": 1.0,
-                            "control_mode": "ControlNet is more important",
+                            "control_mode": "Balanced",
                             "threshold_a": 100,
                             "threshold_b": 200,
                             "input_image": item.imageOptions.sourceImage

@@ -40,5 +40,6 @@ export interface IConfig {
     samplerName: string
     stepCountBase: number
     stepCountDetailMultiplier: number,
-    stepCountTextMultiplier: number
+    stepCountTextMultiplier: number,
+    imageCountForTextGenerations: number
 }
