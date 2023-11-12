@@ -27,14 +27,10 @@ export default class DiscordCom {
             .setName(Constants.COMMAND_GEN)
             .setDescription('Generate an image from a prompt.')
             .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_PROMPT)
-                    .setDescription('The positive prompt that includes elements.')
+                return DiscordUtils.buildPromptOption(option)
             })
             .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_NEGATIVE_PROMPT)
-                    .setDescription('The negative prompt that excludes elements.')
+                return DiscordUtils.buildNegativePromptOption(option)
             })
             .addIntegerOption(option => {
                 return option
@@ -54,26 +50,7 @@ export default class DiscordCom {
                     )
             })
             .addStringOption(option => {
-                return option
-                    .setName(Constants.OPTION_ASPECT_RATIO)
-                    .setDescription('Aspect ratio of the generated images.')
-                    .addChoices(
-                        {name: 'Landscape Golden Ratio', value: '1.618:1'},
-                        {name: 'Landscape 32:9', value: '32:9'},
-                        {name: 'Landscape 21:9', value: '21:9'},
-                        {name: 'Landscape 2:1', value: '2:1'},
-                        {name: 'Landscape 16:9', value: '16:9'},
-                        {name: 'Landscape 3:2', value: '3:2'},
-                        {name: 'Landscape 4:3', value: '4:3'},
-                        {name: 'Square 1:1', value: '1:1'},
-                        {name: 'Portrait 3:4', value: '3:4'},
-                        {name: 'Portrait 2:3', value: '2:3'},
-                        {name: 'Portrait 9:16', value: '9:16'},
-                        {name: 'Portrait 1:2', value: '1:2'},
-                        {name: 'Portrait 9:21', value: '9:21'},
-                        {name: 'Portrait 9:32', value: '9:32'},
-                        {name: 'Portrait Golden Ratio', value: '1:1.618'}
-                    )
+                return DiscordUtils.buildAspectRatioOption(option)
             })
             .addBooleanOption(option => {
                 return option
@@ -217,7 +194,48 @@ export default class DiscordCom {
                     .setDescription('Single: #, range: #-#, all: *')
                     .setRequired(true)
             })
-
+        const textCommand = new SlashCommandBuilder()
+            .setName(Constants.COMMAND_TEXT)
+            .setDescription('Generate an image with text, leave the prompt out to preview.')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_TEXT_INPUT)
+                    .setDescription('The text to generate.')
+                    .setRequired(true)
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_FONT)
+                    .setDescription('The font to use.')
+                    .setRequired(false)
+            })
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_FONT_SIZE)
+                    .setDescription('The font size in percent.')
+                    .setRequired(false)
+            })
+            .addBooleanOption(option => {
+                return option
+                    .setName(Constants.OPTION_FONT_ITALIC)
+                    .setDescription('The text is italic.')
+                    .setRequired(false)
+            })
+            .addBooleanOption(option => {
+                return option
+                    .setName(Constants.OPTION_FONT_BOLD)
+                    .setDescription('The text is bold.')
+                    .setRequired(false)
+            })
+            .addStringOption(option => {
+                return DiscordUtils.buildAspectRatioOption(option)
+            })
+            .addStringOption(option => {
+                return DiscordUtils.buildPromptOption(option)
+            })
+            .addStringOption(option => {
+                return DiscordUtils.buildNegativePromptOption(option)
+            })
         // Submit the commands
         try {
             await this._rest.put(Routes.applicationCommands(config.clientId), {
@@ -228,7 +246,8 @@ export default class DiscordCom {
                     setCommand.toJSON(),
                     paramCommand.toJSON(),
                     listCommand.toJSON(),
-                    cancelCommand.toJSON()
+                    cancelCommand.toJSON(),
+                    textCommand.toJSON()
                 ]
             })
         } catch (e) {
@@ -295,7 +314,7 @@ export default class DiscordCom {
         const message = await item.reference.getMessage(client)
         if (!message) throw('Could not get message.')
 
-        const attachments = Object.entries(item.postOptions.images).map(([fileName, imageData]) => {
+        let attachments = Object.entries(item.postOptions.images).map(([fileName, imageData]) => {
             return new AttachmentBuilder(Buffer.from(imageData, 'base64'), {
                 name: `${fileName}.png`
             }).setSpoiler(item.postOptions.spoiler)
@@ -335,11 +354,10 @@ export default class DiscordCom {
 
         // Components
         const components: ActionRowBuilder<ButtonBuilder>[] = []
-        // if (item.imageOptions.hires) {
-        //     row1.addComponents(deleteButton)
-        //     components.push(row1)
-        // } else
-        if (item.imageOptions.details) {
+        if (item.imageOptions.sourceImage.length > 0) {
+            row1.addComponents(deleteButton, infoButton)
+            components.push(row1)
+        } else if (item.imageOptions.details) {
             row1.addComponents(deleteButton, infoButton)
             components.push(row1)
         } else if (item.imageOptions.variation) {
@@ -352,6 +370,7 @@ export default class DiscordCom {
         }
 
         // Reply
+        if(item.imageOptions.sourceImage.length > 0) attachments = [attachments[0]]
         try {
             Utils.log('Updating', `${Object.keys(item.postOptions.images).length} image(s)`, `#${item.index} ` + item.reference.getConsoleLabel(), Color.FgGray)
             const max = config.maxPromptSizeInResponse
@@ -487,6 +506,15 @@ export default class DiscordCom {
             }).then()
         } catch (e) {
             console.error('Failed to send spam thread message:', e.message)
+        }
+    }
+
+    static async sendImagePreviewMessage(message: string, imageData: string, interaction: CommandInteraction) {
+        const attachment = new AttachmentBuilder(Buffer.from(imageData, 'base64'), {name: `debug.png`})
+        try {
+            await interaction.reply({content: message, ephemeral: true, files: [attachment]})
+        } catch (e) {
+            console.error('Failed to send debug message:', e.message)
         }
     }
 

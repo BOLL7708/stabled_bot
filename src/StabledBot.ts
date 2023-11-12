@@ -10,6 +10,7 @@ import StabledAPI, {ImageGenerationOptions, QueueItem} from './StabledAPI.js'
 import DiscordUtils, {IAttachment} from './DiscordUtils.js'
 import fs from 'fs/promises'
 import DB from './DB.js'
+import ImageUtils from './ImageUtils.js'
 
 export default class StabledBot {
     private static helpCache: IStringDictionary = {}
@@ -548,7 +549,7 @@ export default class StabledBot {
                     }
                     case Constants.COMMAND_CANCEL: {
                         const selection = options.get(Constants.OPTION_CANCEL_SELECTION)?.value?.toString()
-                        if(selection) {
+                        if (selection) {
                             const all = selection.trim() == '*'
                             const [start, end] = selection.split('-')
                             const startIndex = Number(start)
@@ -563,10 +564,10 @@ export default class StabledBot {
                             } catch (e) {
                                 console.error('Cancel reply failed:', e.message)
                             }
-                            for(const reference of references) {
+                            for (const reference of references) {
                                 try {
                                     reference.getMessage(client).then(message => {
-                                        if(message) message.delete().then()
+                                        if (message) message.delete().then()
                                     })
                                 } catch (e) {
                                     console.error('Removing cancelled message failed:', e.message)
@@ -579,6 +580,49 @@ export default class StabledBot {
                             } catch (e) {
                                 console.error('Cancel cancellation failed:', e.message)
                             }
+                        }
+                        break
+                    }
+                    case Constants.COMMAND_TEXT: {
+                        const text = options.get(Constants.OPTION_TEXT_INPUT)?.value?.toString() ?? ''
+                        const font = options.get(Constants.OPTION_FONT)?.value?.toString() ?? 'Arial'
+                        const fontSize = Number(options.get(Constants.OPTION_FONT_SIZE)?.value?.toString() ?? '25')
+                        const aspectRatio = options.get(Constants.OPTION_ASPECT_RATIO)?.value?.toString() ?? '1:1'
+                        const bold = !!options.get(Constants.OPTION_FONT_BOLD)?.value
+                        const italic = !!options.get(Constants.OPTION_FONT_ITALIC)?.value
+                        const size = Utils.normalizeSize(aspectRatio)
+                        const prompt = options.get(Constants.OPTION_PROMPT)?.value?.toString() ?? ''
+                        const negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString() ?? ''
+                        try {
+                            const imageStr = ImageUtils.getImageWithText(text, fontSize, font, bold, italic, size)
+                            if(prompt.length) {
+                                const imageOptions = new ImageGenerationOptions()
+                                imageOptions.count = 1
+                                imageOptions.size = size
+                                imageOptions.prompt = prompt
+                                imageOptions.negativePrompt = negativePrompt
+                                imageOptions.sourceImage = imageStr
+                                const messageStart = 'Here is the text'
+                                enqueueGen(
+                                    imageOptions,
+                                    messageStart,
+                                    false,
+                                    undefined,
+                                    interaction
+                                ).then()
+                            } else {
+                                DiscordCom.sendImagePreviewMessage('This is how the text will appear, fill in the `prompt` when you want to generate the full image.', imageStr, interaction).then()
+                            }
+                        } catch (e) {
+                            try {
+                                interaction.reply({
+                                    ephemeral: true,
+                                    content: `Failed to generate text image: ${e.message}`
+                                })
+                            } catch (e) {
+                                console.error('Failed to reply to text image generation failure:', e.message)
+                            }
+                            console.error('Text image generation failed:', e.message)
                         }
                         break
                     }
@@ -707,7 +751,9 @@ export default class StabledBot {
                 if (imageOptions.details) source = ESource.Detail
                 let stepCount = imageOptions.details
                     ? config.stepCountBase * config.stepCountDetailMultiplier
-                    : config.stepCountBase * imageOptions.count
+                    : imageOptions.sourceImage.length > 0
+                        ? config.stepCountBase * config.stepCountTextMultiplier
+                        : config.stepCountBase * imageOptions.count
                 const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, stepCount, message, interaction)
                 if (userIdOverride) reference.userId = userIdOverride
 

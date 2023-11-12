@@ -39,5 +39,6 @@ export interface IConfig {
     alwaysOnHiresMode: boolean
     samplerName: string
     stepCountBase: number
-    stepCountDetailMultiplier: number
+    stepCountDetailMultiplier: number,
+    stepCountTextMultiplier: number
 }

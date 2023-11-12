@@ -48,6 +48,13 @@ export default class Constants {
     static SUBCOMMAND_LIST_PARAMS = 'params'
     static SUBCOMMAND_LIST_SETTINGS = 'settings'
 
+    static COMMAND_TEXT = 'text'
+    static OPTION_TEXT_INPUT = 'input'
+    static OPTION_FONT = 'font'
+    static OPTION_FONT_SIZE = 'size'
+    static OPTION_FONT_ITALIC = 'italic'
+    static OPTION_FONT_BOLD = 'bold'
+
     static PROMPT_PROMPT = 'prompt-prompt'
     static PROMPT_EDIT = 'prompt-edit'
     static PROMPT_REDO = 'prompt-redo'

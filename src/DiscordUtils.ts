@@ -1,4 +1,4 @@
-import {Attachment, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, DMChannel, Message, ModalSubmitInteraction, TextChannel} from 'discord.js'
+import {Attachment, ButtonBuilder, ButtonInteraction, ButtonStyle, CommandInteraction, DMChannel, Message, ModalSubmitInteraction, SlashCommandStringOption, TextChannel} from 'discord.js'
 import Constants from './Constants.js'
 import axios from 'axios'
 import {IMessageForInteraction} from './Tasks.js'
@@ -8,9 +8,44 @@ export default class DiscordUtils {
     static buildDeadButton(index: number) {
         return new ButtonBuilder()
             .setCustomId(`${Constants.BUTTON_DEAD}#${index}`)
-            .setLabel('‎ ') // Invisible
+            .setLabel('‎') // Invisible
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(true)
+    }
+
+    static buildPromptOption(option: SlashCommandStringOption) {
+        return option
+            .setName(Constants.OPTION_PROMPT)
+            .setDescription('The positive prompt that includes elements.')
+    }
+
+    static buildNegativePromptOption(option: SlashCommandStringOption) {
+        return option
+            .setName(Constants.OPTION_NEGATIVE_PROMPT)
+            .setDescription('The negative prompt that excludes elements.')
+    }
+
+    static buildAspectRatioOption(option: SlashCommandStringOption) {
+        return option
+            .setName(Constants.OPTION_ASPECT_RATIO)
+            .setDescription('Aspect ratio of the generated images.')
+            .addChoices(
+                {name: 'Landscape Golden Ratio', value: '1.618:1'},
+                {name: 'Landscape 32:9', value: '32:9'},
+                {name: 'Landscape 21:9', value: '21:9'},
+                {name: 'Landscape 2:1', value: '2:1'},
+                {name: 'Landscape 16:9', value: '16:9'},
+                {name: 'Landscape 3:2', value: '3:2'},
+                {name: 'Landscape 4:3', value: '4:3'},
+                {name: 'Square 1:1', value: '1:1'},
+                {name: 'Portrait 3:4', value: '3:4'},
+                {name: 'Portrait 2:3', value: '2:3'},
+                {name: 'Portrait 9:16', value: '9:16'},
+                {name: 'Portrait 1:2', value: '1:2'},
+                {name: 'Portrait 9:21', value: '9:21'},
+                {name: 'Portrait 9:32', value: '9:32'},
+                {name: 'Portrait Golden Ratio', value: '1:1.618'}
+            )
     }
 
     // endregion

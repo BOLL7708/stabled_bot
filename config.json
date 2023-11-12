@@ -15,5 +15,6 @@
   "spamMaxBatchSize": 16,
   "spamThreadThreshold": 8,
   "stepCountBase": 20,
-  "stepCountDetailMultiplier": 4
+  "stepCountDetailMultiplier": 4,
+  "stepCountTextMultiplier": 2
 }

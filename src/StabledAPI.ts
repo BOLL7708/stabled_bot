@@ -63,7 +63,9 @@ export default class StabledAPI {
             n_iter: item.imageOptions.count,
             steps: item.imageOptions.details
                 ? config.stepCountBase * config.stepCountDetailMultiplier
-                : config.stepCountBase,
+                : item.imageOptions.sourceImage.length > 0
+                    ? config.stepCountBase * config.stepCountTextMultiplier
+                    : config.stepCountBase,
             width,
             height,
             sampler_name: config.samplerName,
@@ -85,7 +87,28 @@ export default class StabledAPI {
             body['hr_upscaler'] = 'Latent'
             body['denoising_strength'] = 0.7
         }
-
+        if (item.imageOptions.sourceImage.length > 0) {
+            body['alwayson_scripts'] = {
+                "ControlNet": {
+                    "args": [
+                        { // TODO: Tweak this?
+                            "model": "control_v11p_sd15_canny [d14c016b]",
+                            "module": "canny",
+                            "resize_mode": "Crop and Resize",
+                            "lowvram": true,
+                            "pixel_perfect": true,
+                            "guidance": 1.0,
+                            "guidance_start": 0.0,
+                            "guidance_end": 1.0,
+                            "control_mode": "ControlNet is more important",
+                            "threshold_a": 100,
+                            "threshold_b": 200,
+                            "input_image": item.imageOptions.sourceImage
+                        }
+                    ]
+                }
+            }
+        }
         // Do the request
         let response: AxiosResponse<IStabledResponse>
         try {
@@ -246,6 +269,7 @@ export class ImageGenerationOptions {
     hires: boolean = false
     details: boolean = false
     promptHints: string[] = []
+    sourceImage: string = ''
 
     static newFrom(genOptions: ImageGenerationOptions) {
         const newOptions = new ImageGenerationOptions()
