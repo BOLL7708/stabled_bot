@@ -61,35 +61,21 @@ export default class DiscordCom {
         const helpCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_HELP)
             .setDescription('Show documentation about the bot and instructions on how to use it.')
-            .addSubcommand(subcommand => {
-                return subcommand
-                    .setName(Constants.SUBCOMMAND_HELP_GENERAL)
-                    .setDescription('Show general help.')
-            })
-            .addSubcommand(subcommand => {
-                return subcommand
-                    .setName(Constants.SUBCOMMAND_HELP_SPAM)
-                    .setDescription('Show spam command and mode help.')
-            })
-            .addSubcommand(subcommand => {
-                return subcommand
-                    .setName(Constants.SUBCOMMAND_HELP_GEN)
-                    .setDescription('Show generation command help.')
-            })
-            .addSubcommand(subcommand => {
-                return subcommand
-                    .setName(Constants.SUBCOMMAND_HELP_BUTTONS)
-                    .setDescription('Show result buttons help.')
-            })
-            .addSubcommand(subcommand => {
-                return subcommand
-                    .setName(Constants.SUBCOMMAND_HELP_PARAMS)
-                    .setDescription('Show parameter help.')
-            })
-            .addSubcommand(subcommand => {
-                return subcommand
-                    .setName(Constants.SUBCOMMAND_HELP_SETTINGS)
-                    .setDescription('Show settings help.')
+            .addStringOption(option => {
+                return option
+                    .setName(Constants.OPTION_HELP_SECTION)
+                    .setDescription('Select a help topic.')
+                    .setRequired(true)
+                    .addChoices(
+                        {name: '1. General Usage', value: Constants.OPTION_HELP_GENERAL},
+                        {name: '2. Image Generation', value: Constants.OPTION_HELP_GEN},
+                        {name: '3. Response Buttons', value: Constants.OPTION_HELP_BUTTONS},
+                        {name: '4. Chat Message Prompts', value: Constants.OPTION_HELP_SPAM},
+                        {name: '5. User Settings', value: Constants.OPTION_HELP_SETTINGS},
+                        {name: '6. User Parameters', value: Constants.OPTION_HELP_PARAMS},
+                        {name: '7. Text Generation', value: Constants.OPTION_HELP_TEXT},
+                        {name: '8. Advanced Workflow Example', value: Constants.OPTION_HELP_WORKFLOW}
+                    )
             })
 
         const spamCommand = new SlashCommandBuilder()
@@ -214,14 +200,14 @@ export default class DiscordCom {
             })
             .addBooleanOption(option => {
                 return option
-                    .setName(Constants.OPTION_FONT_ITALIC)
-                    .setDescription('The text is italic.')
+                    .setName(Constants.OPTION_FONT_BOLD)
+                    .setDescription('The text is bold.')
                     .setRequired(false)
             })
             .addBooleanOption(option => {
                 return option
-                    .setName(Constants.OPTION_FONT_BOLD)
-                    .setDescription('The text is bold.')
+                    .setName(Constants.OPTION_FONT_ITALIC)
+                    .setDescription('The text is italic.')
                     .setRequired(false)
             })
             .addStringOption(option => {

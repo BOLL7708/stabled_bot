@@ -358,8 +358,8 @@ export default class StabledBot {
                         break
                     }
                     case Constants.COMMAND_HELP: {
-                        const subcommand = options.getSubcommand()
-
+                        const option = options.get(Constants.OPTION_HELP_SECTION)
+                        const file = option?.value as string ?? Constants.OPTION_HELP_GENERAL
                         async function displayHelp(fileName: string, interaction: CommandInteraction) {
                             try {
                                 if (!StabledBot.helpCache.hasOwnProperty(fileName)) StabledBot.helpCache[fileName] = await fs.readFile(`./help/${fileName}.md`, 'utf8')
@@ -372,7 +372,7 @@ export default class StabledBot {
                             }
                         }
 
-                        displayHelp(subcommand, interaction).then()
+                        displayHelp(file, interaction).then()
                         break
                     }
                     case Constants.COMMAND_SPAM: {

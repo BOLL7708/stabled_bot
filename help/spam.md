@@ -6,7 +6,6 @@ Use this command to access the spam mode. The sub-commands are:
 
 * `on`: Turn on the spam mode in the current channel.
 * `off`: Turn off the spam mode in the current channel.
-* `thread`: Create a private thread for the spam mode, it takes an optional `title` option that names the thread.
 
 When enabled in a channel this mode has the bot listen to each posted message and uses it as a prompt. The exception is if you reply to an existing message, those messages will be ignored, and it's how to interact in the channel without causing generations.
 
@@ -21,6 +20,7 @@ You can format your message for some advanced options:
 * Square brackets with comma separated values will create one generation per value, for example `A [red,green,blue] cat` will create three prompts with the same base but with each color separately: `A red cat`, `A green cat`, `A blue cat`.
     * You can use multiple groups of square brackets in one message, all possible variations will be generated, until you hit a set limit. `[1,2,3]x cute [cats,dogs]` will generate six (3*2) different prompts.
     * Square bracket groups are replaced first, so they can be used everywhere in the prompt and still work, to vary the format and/or negative prompt as well.
+    * A trick is to use empty strings, this will repeat a prompt without any changes: `[2,3,7] cats[,,,]`, this will generate twelve (3x4) images.
 
 ### Format
 
