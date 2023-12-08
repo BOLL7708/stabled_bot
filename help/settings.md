@@ -12,6 +12,7 @@ Change the default value for settings, or set a new one. You can set any or all 
 * `negative-prompt`: Description of what should NOT be in the image.
 * `count`: The number of images to generate in a batch.
 * `size`: The size of the resulting image output, should be two numbers divided by a symbol, period is used for decimals.
+* `hires`: Whether to generate a high resolution image.
 
 
 

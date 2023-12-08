@@ -340,6 +340,8 @@ export default class StabledBot {
                         imageOptions.size = Utils.normalizeSize(aspectRatio)
                         const countValue = options.get(Constants.OPTION_COUNT)?.value ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_COUNT)
                         imageOptions.count = countValue ? Number(countValue) : 4
+                        const hiresState = Utils.boolVal(options.get(Constants.OPTION_HIRES)?.value ?? await this._db.getUserSetting(interaction.user.id, Constants.OPTION_HIRES))
+                        imageOptions.hires = !!hiresState
                         const spoiler = !!options.get(Constants.OPTION_SPOILER)?.value
                         if (imageOptions.prompt.length > 0) {
                             enqueueGen(imageOptions, 'Here you go', spoiler, undefined, interaction).then()
@@ -464,15 +466,17 @@ export default class StabledBot {
                         const negativePrompt = options.get(Constants.OPTION_NEGATIVE_PROMPT)?.value?.toString()
                         const size = options.get(Constants.OPTION_SIZE)?.value?.toString()
                         const count = options.get(Constants.OPTION_COUNT)?.value.toString()
+                        const hires = options.get(Constants.OPTION_HIRES)?.value.toString()
                         let updateCount = 0
                         if (prompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_PROMPT, prompt) ? updateCount++ : undefined
                         if (negativePrompt !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_NEGATIVE_PROMPT, negativePrompt) ? updateCount++ : undefined
                         if (size !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_SIZE, size) ? updateCount++ : undefined
                         if (count !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_COUNT, count) ? updateCount++ : undefined
+                        if (hires !== undefined) await this._db.setUserSetting(interaction.user.id, Constants.OPTION_HIRES, hires) ? updateCount++ : undefined
                         try {
                             interaction.reply({
                                 ephemeral: true,
-                                content: `Updated ${updateCount} user settings.`
+                                content: `Updated ${updateCount} user setting(s).`
                             })
                         } catch (e) {
                             console.error('Set reply failed:', e.message)
@@ -713,12 +717,14 @@ export default class StabledBot {
 
             const sizeValue = interaction.fields.getTextInputValue(Constants.INPUT_NEW_SIZE) ?? '1:1'
             const size = Utils.normalizeSize(sizeValue)
+            const hires = Utils.boolVal(interaction.fields.getTextInputValue(Constants.INPUT_NEW_HIRES) ?? false)
 
             const genOptions = new ImageGenerationOptions()
             genOptions.prompt = await Utils.applyUserParamsToPrompt(db, interaction.user.id, interaction.fields.getTextInputValue(Constants.INPUT_NEW_PROMPT) ?? '')
             genOptions.negativePrompt = interaction.fields.getTextInputValue(Constants.INPUT_NEW_NEGATIVE_PROMPT) ?? ''
             genOptions.size = size
             genOptions.count = count
+            genOptions.hires = hires
             return genOptions
         }
 
@@ -746,7 +752,6 @@ export default class StabledBot {
                 const index = StabledAPI.getNextQueueIndex()
                 let source: ESource = ESource.Generate
                 if (imageOptions.predefinedSeed) source = ESource.Recycle
-                if (imageOptions.hires) source = ESource.Upres
                 if (imageOptions.variation) source = ESource.Variation
                 if (imageOptions.details) source = ESource.Detail
                 let stepCount = imageOptions.details
@@ -754,7 +759,7 @@ export default class StabledBot {
                     : imageOptions.sourceImage.length > 0
                         ? config.stepCountBase * config.stepCountTextMultiplier * config.imageCountForTextGenerations
                         : config.stepCountBase * imageOptions.count
-                const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, stepCount, message, interaction)
+                const reference = await DiscordCom.replyQueuedAndGetReference(index, source, fromMention, stepCount * (imageOptions.hires ? 2 : 1), message, interaction)
                 if (userIdOverride) reference.userId = userIdOverride
 
                 // Generate

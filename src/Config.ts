@@ -36,7 +36,6 @@ export interface IConfig {
     spamThreadThreshold: number
     variationStrength: number
     maxPromptSizeInResponse: number
-    alwaysOnHiresMode: boolean
     samplerName: string
     stepCountBase: number
     stepCountDetailMultiplier: number,

@@ -47,6 +47,7 @@ export default class Tasks {
                 data.imageOptions.prompt = pngInfo.prompt
                 data.imageOptions.negativePrompt = pngInfo.negativePrompt
                 data.imageOptions.size = pngInfo.size
+                data.imageOptions.hires = !!(pngInfo.hiresUpscale.length ?? false)
             }
         }
         return data
@@ -57,7 +58,6 @@ export default class Tasks {
     private static _lastQueueItemIndexStarted: number = 0
 
     static async updateProgressAndStartGenerations(client: Client | undefined) {
-        const config = await Config.get()
         const progress = await StabledAPI.getProgress()
         if (!progress) throw('Could not get progress.')
 
@@ -65,7 +65,7 @@ export default class Tasks {
         const isWorking = (progress.state?.job_count ?? 0) > 0
         const queueSize = StabledAPI.getQueueSize()
         const noMoreWork = !isWorking && queueSize <= 0
-        const totalSteps = progress.state.sampling_steps * progress.state.job_count
+        const totalSteps = progress.state.sampling_steps * progress.state.job_count * ((currentQueueItem?.imageOptions?.hires ?? false) ? 2 : 1)
 
         // Presence
         const currentWorkIndex = currentQueueItem?.index ?? 0
@@ -114,7 +114,6 @@ export default class Tasks {
             const item = StabledAPI.getNextInQueue()
             if (item) {
                 this._lastQueueItemIndexStarted = item.index
-                item.imageOptions.hires = config.alwaysOnHiresMode
                 StabledAPI.startGenerationOfImages(item).then()
             }
         }

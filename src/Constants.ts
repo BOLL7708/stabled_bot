@@ -20,6 +20,7 @@ export default class Constants {
     static OPTION_ASPECT_RATIO = 'aspect-ratio'
     static OPTION_SPOILER = 'spoiler'
     static OPTION_SIZE = 'size'
+    static OPTION_HIRES = 'hires'
 
     static COMMAND_SPAM = 'spam'
     static SUBCOMMAND_SPAM_THREAD = 'thread'
@@ -65,6 +66,7 @@ export default class Constants {
     static INPUT_NEW_COUNT = 'new-count'
     static INPUT_NEW_PROMPT = 'new-prompt'
     static INPUT_NEW_NEGATIVE_PROMPT = 'new-negative-prompt'
+    static INPUT_NEW_HIRES = 'new-hires'
 
     static BUTTON_SPAM_THREAD_CANCEL = 'spam-thread-cancel'
     static BUTTON_SPAM_THREAD_OK = 'spam-thread-ok'

@@ -57,6 +57,11 @@ export default class DiscordCom {
                     .setName(Constants.OPTION_SPOILER)
                     .setDescription('Censor the generated images.')
             })
+            .addBooleanOption(option => {
+                return option
+                    .setName(Constants.OPTION_HIRES)
+                    .setDescription('Generate a high resolution image.')
+            })
 
         const helpCommand = new SlashCommandBuilder()
             .setName(Constants.COMMAND_HELP)
@@ -124,6 +129,11 @@ export default class DiscordCom {
                 return option
                     .setName(Constants.OPTION_SIZE)
                     .setDescription('Set default size.')
+            })
+            .addBooleanOption(option => {
+                return option
+                    .setName(Constants.OPTION_HIRES)
+                    .setDescription('Set default hires state.')
             })
 
         const paramCommand = new SlashCommandBuilder()
@@ -537,12 +547,20 @@ export default class DiscordCom {
             .setRequired(false)
         const promptRow4 = new ActionRowBuilder<TextInputBuilder>()
             .addComponents(textInput4)
+        const textInput5 = new TextInputBuilder()
+            .setCustomId(Constants.INPUT_NEW_HIRES)
+            .setLabel("Generate a high resolution image.")
+            .setValue(options.data.imageOptions.hires.toString())
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+        const promptRow5 = new ActionRowBuilder<TextInputBuilder>()
+            .addComponents(textInput5)
 
         const index = !!options.index ? `#${options.index}` : ''
         const modal = new ModalBuilder()
             .setCustomId(options.customIdPrefix + index)
             .setTitle(options.title)
-            .addComponents(promptRow, promptRow2, promptRow3, promptRow4)
+            .addComponents(promptRow, promptRow2, promptRow3, promptRow4, promptRow5)
         await options.interaction.showModal(modal)
     }
 

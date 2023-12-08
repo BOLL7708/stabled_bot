@@ -171,6 +171,13 @@ export default class Utils {
         }
         return prompt
     }
+
+    static boolVal(param: string | boolean | number): boolean {
+        if (typeof param === 'boolean') return param
+        if (typeof param === 'number') return param > 0
+        if (typeof param === 'string') return param.toLowerCase() === 'true'
+        return false
+    }
 }
 
 export class PngInfo {
@@ -182,6 +189,7 @@ export class PngInfo {
     seed: string = ''
     faceRestoration: string = ''
     size: string = ''
+    hiresUpscale: string = ''
     modelHash: string = ''
     model: string = ''
     denoisingStrength: string = ''
