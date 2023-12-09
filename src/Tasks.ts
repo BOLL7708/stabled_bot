@@ -65,7 +65,7 @@ export default class Tasks {
         const isWorking = (progress.state?.job_count ?? 0) > 0
         const queueSize = StabledAPI.getQueueSize()
         const noMoreWork = !isWorking && queueSize <= 0
-        const totalSteps = progress.state.sampling_steps * progress.state.job_count * ((currentQueueItem?.imageOptions?.hires ?? false) ? 2 : 1)
+        const totalSteps = progress.state.sampling_steps * progress.state.job_count
 
         // Presence
         const currentWorkIndex = currentQueueItem?.index ?? 0
