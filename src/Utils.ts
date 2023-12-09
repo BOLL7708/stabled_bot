@@ -143,12 +143,14 @@ export default class Utils {
             }
             const dbSize = await db.getUserSetting(userId, Constants.OPTION_SIZE)
             if(!size && dbSize) size = Utils.normalizeSize(dbSize)
+            const hires = await db.getUserSetting(userId, Constants.OPTION_HIRES)
 
             const newOptions = new ImageGenerationOptions()
             newOptions.prompt = altPrompt
             newOptions.promptHints = alt.hints
             newOptions.negativePrompt = negativePrompt?.length ? negativePrompt : await db.getUserSetting(userId, Constants.OPTION_NEGATIVE_PROMPT) ?? ''
             if(size) newOptions.size = size
+            if(hires) newOptions.hires = Utils.boolVal(hires)
             result.push(newOptions)
         }
         return result
